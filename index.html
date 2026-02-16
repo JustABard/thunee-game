@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Thunee - South African Card Game</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <!-- Lobby Screen -->
+    <div id="lobby" class="screen">
+        <div class="lobby-container">
+            <h1 class="game-title">🃏 Thunee</h1>
+            <p class="subtitle">South African Trick-Taking Card Game</p>
+            
+            <div class="lobby-section">
+                <h2>Game Settings</h2>
+                <div class="setting-row">
+                    <label for="targetBalls">Target Balls to Win:</label>
+                    <input type="number" id="targetBalls" value="12" min="1" max="24">
+                </div>
+                <div class="setting-row">
+                    <label for="callAndLoss">
+                        <input type="checkbox" id="callAndLoss"> Call and Loss
+                    </label>
+                    <span class="setting-desc">Losing caller gives opponents 2 balls instead of 1</span>
+                </div>
+                <div class="setting-row">
+                    <label for="jodiCalls">
+                        <input type="checkbox" id="jodiCalls"> 1/3 Jodi Calls
+                    </label>
+                    <span class="setting-desc">Jodi (J+9 of trump) must be called in first 3 tricks</span>
+                </div>
+            </div>
+
+            <div class="lobby-section">
+                <h2>Players</h2>
+                <div class="player-setup">
+                    <div class="player-slot you">
+                        <span class="player-icon">👤</span>
+                        <span>You (South)</span>
+                        <span class="team-badge team-a">Team A</span>
+                    </div>
+                    <div class="player-slot ai">
+                        <span class="player-icon">🤖</span>
+                        <span>AI West</span>
+                        <span class="team-badge team-b">Team B</span>
+                    </div>
+                    <div class="player-slot ai">
+                        <span class="player-icon">🤖</span>
+                        <span>AI North (Partner)</span>
+                        <span class="team-badge team-a">Team A</span>
+                    </div>
+                    <div class="player-slot ai">
+                        <span class="player-icon">🤖</span>
+                        <span>AI East</span>
+                        <span class="team-badge team-b">Team B</span>
+                    </div>
+                </div>
+            </div>
+
+            <button id="startGame" class="btn-primary">Start Game</button>
+        </div>
+    </div>
+
+    <!-- Game Screen -->
+    <div id="game" class="screen hidden">
+        <!-- Scoreboard -->
+        <div id="scoreboard">
+            <div class="score-team">
+                <span class="team-name">Team A (You + North)</span>
+                <span class="score-balls" id="scoreA">0</span>
+                <span class="score-label">balls</span>
+            </div>
+            <div class="score-info">
+                <div id="trumpIndicator" class="trump-indicator hidden">
+                    Trump: <span id="trumpSuit"></span>
+                </div>
+                <div id="roundInfo">Round <span id="roundNum">1</span></div>
+                <div id="trickInfo">Trick <span id="trickNum">1</span>/6</div>
+                <div id="bidInfo" class="hidden">Bid: <span id="bidAmount"></span> by <span id="bidder"></span></div>
+            </div>
+            <div class="score-team">
+                <span class="team-name">Team B (West + East)</span>
+                <span class="score-balls" id="scoreB">0</span>
+                <span class="score-label">balls</span>
+            </div>
+        </div>
+
+        <!-- Game Table -->
+        <div id="gameTable">
+            <!-- North (Partner AI) -->
+            <div class="player-area north">
+                <div class="player-label">North (Partner) 🤖</div>
+                <div class="hand-hidden" id="northHand"></div>
+            </div>
+
+            <!-- West AI -->
+            <div class="player-area west">
+                <div class="player-label">West 🤖</div>
+                <div class="hand-hidden vertical" id="westHand"></div>
+            </div>
+
+            <!-- East AI -->
+            <div class="player-area east">
+                <div class="player-label">East 🤖</div>
+                <div class="hand-hidden vertical" id="eastHand"></div>
+            </div>
+
+            <!-- Trick Area (center) -->
+            <div id="trickArea">
+                <div class="trick-card-slot" id="trickNorth"></div>
+                <div class="trick-card-slot" id="trickWest"></div>
+                <div class="trick-card-slot" id="trickEast"></div>
+                <div class="trick-card-slot" id="trickSouth"></div>
+            </div>
+
+            <!-- South (Human Player) -->
+            <div class="player-area south">
+                <div class="hand" id="southHand"></div>
+            </div>
+        </div>
+
+        <!-- Action Panel -->
+        <div id="actionPanel" class="hidden">
+            <div id="actionMessage"></div>
+            <div id="actionButtons"></div>
+        </div>
+
+        <!-- Game Log -->
+        <div id="gameLog">
+            <div id="logContent"></div>
+        </div>
+    </div>
+
+    <!-- Game Over Overlay -->
+    <div id="gameOver" class="overlay hidden">
+        <div class="overlay-content">
+            <h2 id="gameOverTitle"></h2>
+            <p id="gameOverMessage"></p>
+            <div id="finalScores"></div>
+            <button id="playAgain" class="btn-primary">Play Again</button>
+        </div>
+    </div>
+
+    <script src="game.js"></script>
+</body>
+</html>
