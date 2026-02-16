@@ -2,6 +2,10 @@
 
 This guide explains how to build a signed release APK for the Thunee Game Flutter application.
 
+## Quick Start: GitHub Actions (Recommended for Mobile Users)
+
+**Perfect for when you're on mobile!** The easiest way to build release APKs is using GitHub Actions, which builds automatically in the cloud. Jump to the [GitHub Actions Setup](#github-actions-automated-builds) section to get started.
+
 ## Prerequisites
 
 Before building a release APK, ensure you have:
@@ -211,6 +215,167 @@ You should see "jar verified" in the output.
    export KEY_ALIAS=thunee-game
    export KEYSTORE_FILE=/path/to/keystore.jks
    ```
+
+## GitHub Actions Automated Builds
+
+This project includes a GitHub Actions workflow that automatically builds release APKs in the cloud. This is ideal when:
+- You're on mobile and can't build locally
+- You want automated builds on every commit
+- You need consistent build environments
+
+### Setting Up GitHub Actions
+
+#### Step 1: Generate a Keystore
+
+First, you need to create a keystore on a computer (you only need to do this once):
+
+```bash
+keytool -genkey -v -keystore thunee-game-key.jks -keyalg RSA -keysize 2048 -validity 10000 -alias thunee-game
+```
+
+Save the keystore file and remember:
+- The keystore password
+- The key password
+- The key alias (use: `thunee-game`)
+
+#### Step 2: Convert Keystore to Base64
+
+Convert your keystore to base64 so it can be stored in GitHub Secrets:
+
+**On Linux/Mac:**
+```bash
+base64 thunee-game-key.jks | tr -d '\n' > keystore.base64.txt
+```
+
+**On Windows (PowerShell):**
+```powershell
+[Convert]::ToBase64String([IO.File]::ReadAllBytes("thunee-game-key.jks")) | Out-File keystore.base64.txt
+```
+
+This creates a `keystore.base64.txt` file containing the encoded keystore.
+
+#### Step 3: Add GitHub Secrets
+
+1. Go to your GitHub repository
+2. Click **Settings** > **Secrets and variables** > **Actions**
+3. Click **New repository secret** and add these secrets:
+
+| Secret Name | Value | Description |
+|-------------|-------|-------------|
+| `KEYSTORE_BASE64` | Contents of `keystore.base64.txt` | Base64-encoded keystore |
+| `KEYSTORE_PASSWORD` | Your keystore password | Password for the keystore |
+| `KEY_PASSWORD` | Your key password | Password for the key |
+| `KEY_ALIAS` | `thunee-game` | Alias used when creating keystore |
+
+**Important**: Keep the `keystore.base64.txt` file secure and delete it after adding to GitHub Secrets.
+
+#### Step 4: Trigger a Build
+
+The workflow can be triggered in several ways:
+
+**Option A: Manual Trigger (Best for Mobile)**
+1. Go to **Actions** tab in your GitHub repository
+2. Click **Build Release APK** workflow
+3. Click **Run workflow** button
+4. Select branch and click **Run workflow**
+
+**Option B: Automatic on Push**
+- The workflow automatically runs when you push to `main` or `master` branch
+
+**Option C: Automatic on Tag**
+- Create a version tag to trigger a release:
+  ```bash
+  git tag v1.0.0
+  git push origin v1.0.0
+  ```
+- This also creates a GitHub Release with downloadable APKs
+
+#### Step 5: Download Your APK
+
+After the workflow completes:
+
+1. Go to **Actions** tab in your repository
+2. Click on the completed workflow run
+3. Scroll to **Artifacts** section at the bottom
+4. Download the APK or App Bundle:
+   - `thunee-game-vX.X.X-release.apk` - Universal APK
+   - `thunee-game-vX.X.X-release.aab` - App Bundle for Play Store
+   - `thunee-game-vX.X.X-split-apks` - Smaller APKs for each architecture
+
+**Artifacts are stored for 30 days.**
+
+### What the Workflow Does
+
+The GitHub Actions workflow automatically:
+1. ✅ Sets up Java 17 and Flutter
+2. ✅ Installs project dependencies
+3. ✅ Runs code generation (`build_runner`)
+4. ✅ Decodes your keystore from secrets
+5. ✅ Creates the `key.properties` file
+6. ✅ Builds signed release APK
+7. ✅ Builds signed App Bundle (.aab)
+8. ✅ Builds split APKs for each architecture
+9. ✅ Uploads all builds as downloadable artifacts
+10. ✅ Creates GitHub Release (when pushing tags)
+
+### Using from Mobile
+
+From your mobile device:
+
+1. **Trigger Build**:
+   - Open GitHub app or browser
+   - Go to Actions tab
+   - Run workflow manually
+
+2. **Wait for Build** (usually 5-10 minutes):
+   - You'll get a notification when complete
+   - Or check the Actions tab for status
+
+3. **Download APK**:
+   - Open the completed workflow
+   - Download artifact from Artifacts section
+   - Extract APK from zip file
+   - Install on your device
+
+### Workflow File Location
+
+The workflow is defined in:
+```
+.github/workflows/build-release-apk.yml
+```
+
+You can customize it to:
+- Change trigger conditions
+- Modify Flutter version
+- Add additional build steps
+- Change artifact retention period
+
+### Security Notes for GitHub Actions
+
+1. **Secrets are encrypted**: GitHub encrypts all secrets and they're never exposed in logs
+2. **Keystore stays secure**: The base64 keystore is decoded only during the build and immediately discarded
+3. **No local storage needed**: You don't need to store sensitive files on your device
+4. **Audit trail**: All builds are logged and can be reviewed
+
+### Troubleshooting GitHub Actions
+
+**Workflow fails at "Decode keystore" step:**
+- Verify `KEYSTORE_BASE64` secret is set correctly
+- Ensure there are no extra spaces or newlines in the base64 string
+
+**Workflow fails at "Build APK" step:**
+- Check that all four secrets are set correctly
+- Verify the `KEY_ALIAS` matches what you used when creating the keystore
+- Check workflow logs for specific error messages
+
+**Cannot find artifacts:**
+- Artifacts are only available for 30 days
+- Check that the workflow completed successfully
+- Look in the workflow run details, not the Actions tab
+
+**Want to build without signing:**
+- Remove or leave empty the `KEYSTORE_BASE64` secret
+- The workflow will build using debug signing (for testing only)
 
 ## Distribution
 
