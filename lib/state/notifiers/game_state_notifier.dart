@@ -25,6 +25,7 @@ class GameStateNotifier extends StateNotifier<MatchState?> {
 
     if (result.success && result.newMatchState != null) {
       state = result.newMatchState;
+      _checkBotTurn();
     }
   }
 
