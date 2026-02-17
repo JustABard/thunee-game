@@ -149,9 +149,9 @@ class MatchState extends Equatable {
 
   @override
   String toString() => 'MatchState('
-      'Rounds: ${roundsPlayed}, '
-      'Team 0: ${teams[0].balls} balls, '
-      'Team 1: ${teams[1].balls} balls, '
+      'Rounds: $roundsPlayed, '
+      'Team 1: ${teams[0].balls} balls, '
+      'Team 2: ${teams[1].balls} balls, '
       'Target: $matchTarget, '
       'Complete: $isComplete)';
 }

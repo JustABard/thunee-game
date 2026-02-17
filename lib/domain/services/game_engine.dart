@@ -101,13 +101,14 @@ class GameEngine {
     );
   }
 
-  /// Makes a bid
+  /// Makes a bid.
+  /// [bidder] specifies which seat is bidding (first-come-first-serve).
   GameActionResult makeBid({
     required RoundState state,
     required int amount,
+    required Seat bidder,
   }) {
-    final bidder = state.currentPlayer;
-    final bid = BidCall(caller: bidder.seat, amount: amount);
+    final bid = BidCall(caller: bidder, amount: amount);
 
     // Validate bid
     final validation = callValidator.validateBid(bid: bid, state: state);
@@ -115,26 +116,28 @@ class GameEngine {
       return GameActionResult.error(validation.errorMessage);
     }
 
-    // Update state
+    // Update state — don't advance turn (FCFS bidding has no turn order)
     final newCallHistory = [...state.callHistory, bid];
     final newState = state.copyWith(
       callHistory: newCallHistory,
       highestBid: bid,
       passCount: 0, // Reset pass count
-      trumpMakingTeam: bidder.seat.teamNumber,
-      currentTurn: turnManager.getNextTurn(state),
+      trumpMakingTeam: bidder.teamNumber,
     );
 
-    // Check if we should transition to playing phase
+    // Check if we should transition to choosing trump
     final finalState = _checkBiddingComplete(newState);
 
     return GameActionResult.success(newState: finalState);
   }
 
-  /// Passes on bidding
-  GameActionResult passBid(RoundState state) {
-    final passer = state.currentPlayer;
-    final pass = PassCall(caller: passer.seat);
+  /// Passes on bidding.
+  /// [passer] specifies which seat is passing (first-come-first-serve).
+  GameActionResult passBid({
+    required RoundState state,
+    required Seat passer,
+  }) {
+    final pass = PassCall(caller: passer);
 
     // Validate pass
     final validation = callValidator.validatePass(pass: pass, state: state);
@@ -142,43 +145,82 @@ class GameEngine {
       return GameActionResult.error(validation.errorMessage);
     }
 
-    // Update state
+    // Update state — don't advance turn (FCFS bidding has no turn order)
     final newCallHistory = [...state.callHistory, pass];
     final newState = state.copyWith(
       callHistory: newCallHistory,
       passCount: state.passCount + 1,
-      currentTurn: turnManager.getNextTurn(state),
     );
 
-    // Check if we should transition to playing phase
+    // Check if we should transition to choosing trump
     final finalState = _checkBiddingComplete(newState);
 
     return GameActionResult.success(newState: finalState);
   }
 
-  /// Checks if bidding is complete and transitions to playing if needed.
-  /// When transitioning, distributes the held-back 2 cards to each player.
+  /// Checks if bidding is complete and transitions to choosingTrump if needed.
+  /// The 2 held-back cards are NOT distributed yet — that happens after trump is chosen.
+  ///
+  /// If all 4 players pass with no bid, the person to the right of the dealer
+  /// (dealer.next) auto-becomes trump-maker at 0. This does NOT trigger call-and-loss.
   RoundState _checkBiddingComplete(RoundState state) {
     if (turnManager.shouldTransitionPhase(state)) {
       final nextPhase = turnManager.getNextPhase(state);
 
-      if (nextPhase == RoundPhase.playing) {
-        // Distribute the held-back 2 cards before play begins
-        final stateWithFullHands = state.distributeRemainingCards();
-
-        // Determine first trick leader
-        final leader = turnManager.getFirstTrickLeader(stateWithFullHands);
-        final trick = Trick.empty(leader);
-
-        return stateWithFullHands.copyWith(
-          phase: nextPhase,
-          currentTrick: trick,
-          currentTurn: leader,
-        );
+      if (nextPhase == RoundPhase.choosingTrump) {
+        if (state.highestBid != null) {
+          // Normal case: bid winner picks trump
+          final bidWinner = state.highestBid!.caller;
+          return state.copyWith(
+            phase: RoundPhase.choosingTrump,
+            currentTurn: bidWinner,
+          );
+        } else {
+          // All passed — person to the right of dealer auto-gets trump at 0
+          final defaultTrumpMaker = state.dealer.next;
+          return state.copyWith(
+            phase: RoundPhase.choosingTrump,
+            currentTurn: defaultTrumpMaker,
+            trumpMakingTeam: defaultTrumpMaker.teamNumber,
+          );
+        }
       }
     }
 
     return state;
+  }
+
+  /// Bid winner selects trump by tapping one of their cards.
+  /// The chosen card's suit becomes trump; the card stays in hand.
+  /// After selection the held-back 2 cards are dealt and play begins.
+  GameActionResult selectTrump({
+    required RoundState state,
+    required Card card,
+  }) {
+    if (state.phase != RoundPhase.choosingTrump) {
+      return const GameActionResult.error('Can only select trump during trump selection phase');
+    }
+
+    // Trump maker: bid winner, or dealer.next if all passed
+    final caller = state.highestBid?.caller ?? state.dealer.next;
+    final trumpSuit = card.suit;
+
+    // Distribute remaining 2 cards now that trump is known
+    final stateWithCards = state
+        .copyWith(trumpSuit: trumpSuit, trumpCard: card)
+        .distributeRemainingCards();
+
+    // Person to the RIGHT of the trump-setter leads first (next in anti-clockwise order)
+    final leader = caller.next;
+    final trick = Trick.empty(leader);
+
+    return GameActionResult.success(
+      newState: stateWithCards.copyWith(
+        phase: RoundPhase.playing,
+        currentTrick: trick,
+        currentTurn: leader,
+      ),
+    );
   }
 
   /// Plays a card
@@ -211,14 +253,10 @@ class GameEngine {
     // Add card to trick
     final updatedTrick = trick.playCard(player.seat, card);
 
-    // Determine trump suit from first card if needed
-    Suit? trumpSuit = state.trumpSuit;
-    if (trumpSuit == null && trick.isEmpty) {
-      // First card of round determines trump
-      trumpSuit = card.suit;
-    }
+    // Trump is set via selectTrump, or by first card led in Thunee/Royals
+    final trumpSuit = state.trumpSuit ?? card.suit;
 
-    // Update state with new trick and player
+    // Update state with new trick, player, and trump (may be newly set)
     var newState = state.updatePlayer(updatedPlayer).copyWith(
       currentTrick: updatedTrick,
       trumpSuit: trumpSuit,
@@ -226,7 +264,7 @@ class GameEngine {
 
     // Check if trick is complete
     if (updatedTrick.isComplete) {
-      newState = _completeTrick(newState, updatedTrick, trumpSuit!);
+      newState = _completeTrick(newState, updatedTrick, trumpSuit);
     } else {
       // Move to next player
       newState = newState.copyWith(
@@ -237,7 +275,9 @@ class GameEngine {
     return GameActionResult.success(newState: newState);
   }
 
-  /// Completes a trick and determines winner
+  /// Completes a trick and determines winner.
+  /// The completed trick is kept as [currentTrick] so the UI can display all
+  /// 4 cards. The notifier is responsible for starting the next trick after a delay.
   RoundState _completeTrick(RoundState state, Trick trick, Suit trumpSuit) {
     // Determine winner
     final winner = trickResolver.determineWinner(
@@ -257,20 +297,22 @@ class GameEngine {
 
     var newState = state
         .updateTeam(updatedTeam)
-        .copyWith(completedTricks: newCompletedTricks);
+        .copyWith(
+          completedTricks: newCompletedTricks,
+          currentTrick: completedTrick, // Keep visible — notifier handles next trick
+        );
 
-    // Check if round is complete
+    // Check for Thunee/Royals immediate failure
+    final activeCall = newState.activeThuneeCall;
+    if (activeCall != null && winner != activeCall.caller) {
+      // Caller didn't win — Thunee/Royals failed, end round immediately
+      newState = newState.copyWith(phase: RoundPhase.scoring);
+      return newState;
+    }
+
+    // Check if round is complete (all 6 tricks played)
     if (newState.allTricksComplete) {
-      newState = newState.copyWith(
-        phase: RoundPhase.scoring,
-        currentTrick: null,
-      );
-    } else {
-      // Start new trick with winner leading
-      newState = newState.copyWith(
-        currentTrick: Trick.empty(winner),
-        currentTurn: winner,
-      );
+      newState = newState.copyWith(phase: RoundPhase.scoring);
     }
 
     return newState;
@@ -281,7 +323,8 @@ class GameEngine {
     required RoundState state,
     required CallData call,
   }) {
-    final player = state.currentPlayer;
+    // Look up the player who is making the call (not necessarily currentTurn)
+    final player = state.playerAt(call.caller);
 
     // Validate call
     final validation = callValidator.validateCall(
@@ -296,8 +339,29 @@ class GameEngine {
 
     // Add to call history
     final newCallHistory = [...state.callHistory, call];
-    final newState = state.copyWith(callHistory: newCallHistory);
 
+    // Thunee/Royals: caller leads first, first card's suit becomes trump
+    if (call.category == CallCategory.thunee ||
+        call.category == CallCategory.royals) {
+      // Must construct directly — copyWith can't clear trumpSuit (uses ??)
+      final newState = RoundState(
+        phase: RoundPhase.playing,
+        players: state.players,
+        teams: state.teams,
+        completedTricks: const [],
+        currentTrick: Trick.empty(call.caller),
+        callHistory: newCallHistory,
+        highestBid: state.highestBid,
+        passCount: state.passCount,
+        trumpSuit: null, // Cleared — set by first card led
+        trumpMakingTeam: call.caller.teamNumber,
+        currentTurn: call.caller,
+        dealer: state.dealer,
+      );
+      return GameActionResult.success(newState: newState);
+    }
+
+    final newState = state.copyWith(callHistory: newCallHistory);
     return GameActionResult.success(newState: newState);
   }
 

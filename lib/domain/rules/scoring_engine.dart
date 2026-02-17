@@ -35,20 +35,21 @@ class ScoringEngine {
 
   ScoringEngine(this.config);
 
-  /// Calculates the score for a completed round and returns ball adjustments
+  /// Calculates the score for a completed round and returns ball adjustments.
+  /// For Thunee/Royals, the round may end early (not all 6 tricks played).
   ScoringBreakdown calculateRoundScore(RoundState state) {
-    if (!state.allTricksComplete) {
-      throw StateError('Cannot score incomplete round');
-    }
-
-    // Check for special call scoring first
+    // Check for special call scoring first — Thunee/Royals can end early
     final thuneeCall = state.activeThuneeCall;
 
     if (thuneeCall != null) {
       return _scoreThuneeRound(state, thuneeCall);
     }
 
-    // Normal bidding round
+    // Normal bidding round — must have all 6 tricks
+    if (!state.allTricksComplete) {
+      throw StateError('Cannot score incomplete round');
+    }
+
     return _scoreNormalRound(state);
   }
 
@@ -66,8 +67,8 @@ class ScoringEngine {
     final team1Total = team1Points + team1JodiPoints;
 
     final details = <String>[];
-    details.add('Team 0: $team0Points card points${team0JodiPoints > 0 ? ' + $team0JodiPoints Jodi' : ''} = $team0Total');
-    details.add('Team 1: $team1Points card points${team1JodiPoints > 0 ? ' + $team1JodiPoints Jodi' : ''} = $team1Total');
+    details.add('Team 1: $team0Points card points${team0JodiPoints > 0 ? ' + $team0JodiPoints Jodi' : ''} = $team0Total');
+    details.add('Team 2: $team1Points card points${team1JodiPoints > 0 ? ' + $team1JodiPoints Jodi' : ''} = $team1Total');
 
     // Determine counting team
     final countingTeam = state.trumpMakingTeam;
@@ -76,7 +77,7 @@ class ScoringEngine {
     final countingTeamPoints = countingTeam == 0 ? team0Total : team1Total;
     final nonCountingTeamPoints = countingTeam == 0 ? team1Total : team0Total;
 
-    details.add('Counting team: Team $countingTeam (made trump)');
+    details.add('Counting team: Team ${countingTeam + 1} (made trump)');
     details.add('Counting team points: $countingTeamPoints');
 
     // Check if counting team reached 105
@@ -84,16 +85,15 @@ class ScoringEngine {
     int team1Balls = 0;
 
     if (countingTeamPoints >= WINNING_THRESHOLD) {
-      // Counting team wins
-      final ballsAwarded = _calculateBallsFromPoints(countingTeamPoints);
+      // Counting team wins — always +1 ball
       if (countingTeam == 0) {
-        team0Balls = ballsAwarded;
+        team0Balls = 1;
       } else {
-        team1Balls = ballsAwarded;
+        team1Balls = 1;
       }
-      details.add('Counting team reached $WINNING_THRESHOLD+ → +$ballsAwarded balls');
+      details.add('Counting team reached $WINNING_THRESHOLD+ → +1 ball');
     } else {
-      // Counting team failed
+      // Counting team failed to reach threshold
       details.add('Counting team failed to reach $WINNING_THRESHOLD');
 
       if (config.enableCallAndLoss) {
@@ -103,7 +103,7 @@ class ScoringEngine {
         } else {
           team1Balls = CALL_AND_LOSS_BALLS;
         }
-        details.add('Call & Loss rule: non-counting team gets +$CALL_AND_LOSS_BALLS balls');
+        details.add('Call & Loss: opponents get +$CALL_AND_LOSS_BALLS balls');
       } else {
         // Standard: opponents get +1 ball
         if (nonCountingTeam == 0) {
@@ -111,7 +111,7 @@ class ScoringEngine {
         } else {
           team1Balls = 1;
         }
-        details.add('Non-counting team gets +1 ball');
+        details.add('Opponents get +1 ball');
       }
     }
 
@@ -125,7 +125,7 @@ class ScoringEngine {
       } else {
         team1Balls += doubleBalls;
       }
-      details.add('Double: Team $doubleTeam ${doubleBalls > 0 ? 'won' : 'lost'} → ${doubleBalls > 0 ? '+' : ''}$doubleBalls balls');
+      details.add('Double: Team ${doubleTeam + 1} ${doubleBalls > 0 ? 'won' : 'lost'} → ${doubleBalls > 0 ? '+' : ''}$doubleBalls balls');
     }
 
     // Check for Kunuck on last trick
@@ -138,7 +138,7 @@ class ScoringEngine {
       } else {
         team1Balls += kunuckBalls;
       }
-      details.add('Kunuck: Team $kunuckTeam ${kunuckBalls > 0 ? 'won' : 'lost'} → ${kunuckBalls > 0 ? '+' : ''}$kunuckBalls balls');
+      details.add('Kunuck: Team ${kunuckTeam + 1} ${kunuckBalls > 0 ? 'won' : 'lost'} → ${kunuckBalls > 0 ? '+' : ''}$kunuckBalls balls');
     }
 
     return ScoringBreakdown(
@@ -146,7 +146,7 @@ class ScoringEngine {
       team1Points: team1Total,
       team0BallsAwarded: team0Balls,
       team1BallsAwarded: team1Balls,
-      description: 'Normal round: Team 0 +$team0Balls balls, Team 1 +$team1Balls balls',
+      description: 'Normal round: Team 1 +$team0Balls balls, Team 2 +$team1Balls balls',
       details: details,
     );
   }
@@ -158,7 +158,7 @@ class ScoringEngine {
     final opponentTeam = callerTeam == 0 ? 1 : 0;
 
     final details = <String>[];
-    details.add('${thuneeCall.category.name} called by Team $callerTeam');
+    details.add('${thuneeCall.category.name} called by Team ${callerTeam + 1}');
 
     // Count tricks won by caller
     final callerTricks = state.completedTricks.where((t) => t.winningSeat == callerSeat).length;
@@ -197,19 +197,14 @@ class ScoringEngine {
       details.add('Success! Caller\'s team gets +$successBalls balls');
     } else {
       // Opponents won at least 1 trick - failure
-      final failureBalls = _getThuneeFailureBalls(thuneeCall);
+      // Opponents get the balls (positive); caller team gets nothing (not negative)
+      final penaltyBalls = _getThuneeFailureBalls(thuneeCall).abs();
       if (opponentTeam == 0) {
-        team0Balls = -failureBalls; // Opponents get positive, caller gets negative
+        team0Balls = penaltyBalls;
       } else {
-        team1Balls = -failureBalls;
+        team1Balls = penaltyBalls;
       }
-      // Negate for caller's team
-      if (callerTeam == 0) {
-        team0Balls = failureBalls;
-      } else {
-        team1Balls = failureBalls;
-      }
-      details.add('Failure! Opponents get +${-failureBalls} balls');
+      details.add('Failure! Opponents get +$penaltyBalls balls');
     }
 
     return ScoringBreakdown(
@@ -217,7 +212,7 @@ class ScoringEngine {
       team1Points: 0,
       team0BallsAwarded: team0Balls,
       team1BallsAwarded: team1Balls,
-      description: '${thuneeCall.category.name}: Team 0 ${team0Balls >= 0 ? '+' : ''}$team0Balls balls, Team 1 ${team1Balls >= 0 ? '+' : ''}$team1Balls balls',
+      description: '${thuneeCall.category.name}: Team 1 ${team0Balls >= 0 ? '+' : ''}$team0Balls balls, Team 2 ${team1Balls >= 0 ? '+' : ''}$team1Balls balls',
       details: details,
     );
   }

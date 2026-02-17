@@ -13,30 +13,15 @@ class BiddingPanel extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final isHumanTurn = ref.watch(isHumanTurnProvider);
     final currentBid = roundState.highestBid?.amount ?? 0;
-
-    if (!isHumanTurn) {
-      return Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        color: Colors.black26,
-        child: const Center(
-          child: Text(
-            'Waiting for opponent to bid...',
-            style: TextStyle(color: Colors.white, fontSize: 13),
-          ),
-        ),
-      )
-          .animate()
-          .fadeIn(duration: const Duration(milliseconds: 300))
-          .shimmer(
-            duration: const Duration(seconds: 2),
-            color: Colors.white24,
-          );
-    }
+    final highestBidder = roundState.highestBid?.caller;
 
     // Calculate next valid bid
     final nextBid = currentBid + BID_INCREMENT;
+
+    // Default trump-maker label (dealer.next gets trump if everyone passes)
+    final defaultTrumpSeat = roundState.dealer.next;
+    final defaultTrumpName = roundState.playerAt(defaultTrumpSeat).name;
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
@@ -52,9 +37,15 @@ class BiddingPanel extends ConsumerWidget {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
+          // Default trump-maker info
+          Text(
+            'Default trump: $defaultTrumpName',
+            style: TextStyle(color: Colors.white38, fontSize: 10),
+          ),
+          const SizedBox(width: 12),
           if (currentBid > 0) ...[
             Text(
-              'Bid: $currentBid',
+              'Bid: $currentBid (${highestBidder?.name ?? ""})',
               style: Theme.of(context).textTheme.bodyMedium,
             ),
             const SizedBox(width: 16),

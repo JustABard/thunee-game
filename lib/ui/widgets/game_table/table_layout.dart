@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../../../domain/models/card.dart' as game_card;
 import '../../../domain/models/player.dart';
 import '../../../domain/models/round_state.dart';
 import '../../../state/providers/ui_state_provider.dart';
@@ -38,7 +37,18 @@ class TableLayout extends ConsumerWidget {
 
     // Who's acting and who called trump — used by player widgets for highlights
     final currentTurn = roundState.currentTurn;
-    final trumpCaller = roundState.highestBid?.caller;
+    // Don't show trump badge during Thunee/Royals (trump is overridden).
+    // If nobody bid, the default trump-maker is dealer.next.
+    final Seat? trumpCaller = roundState.activeThuneeCall != null
+        ? null
+        : (roundState.highestBid?.caller ?? (
+            // Show default trump-maker once bidding ends (choosingTrump or playing)
+            (roundState.phase == RoundPhase.choosingTrump ||
+             roundState.phase == RoundPhase.playing ||
+             roundState.phase == RoundPhase.scoring)
+                ? roundState.dealer.next
+                : null
+          ));
 
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -56,10 +66,10 @@ class TableLayout extends ConsumerWidget {
         final sideW   = w * sideFrac;
         final centerW = w - sideW * 2;
 
-        // Card heights derived from zone — clamped conservatively to leave room
-        // for the player name label (≈14px) and the 3px spacer in _HorizontalPlayer
-        final southCardH = (southH - 22).clamp(44.0, 68.0);
-        final northCardH = (northH - 16).clamp(28.0, 44.0);
+        // Card heights derived from zone — 30px safety margin covers nameLabel
+        // (~17–21px depending on device font metrics) + 3px spacer + small buffer
+        final southCardH = (southH - 30).clamp(36.0, 62.0);
+        final northCardH = (northH - 30).clamp(18.0, 36.0);
         final sideCardH  = (centerH * 0.20).clamp(24.0, 42.0);
         final trickCardH = (centerH * 0.32).clamp(38.0, 68.0);
 
@@ -100,6 +110,7 @@ class TableLayout extends ConsumerWidget {
                               player: westPlayer,
                               showCards: showWest,
                               cardH: sideCardH,
+                              maxWidth: sideW,
                               isCurrentTurn: westPlayer.seat == currentTurn,
                               isTrumpCaller: westPlayer.seat == trumpCaller,
                               animDelay: const Duration(milliseconds: 100),
@@ -129,6 +140,7 @@ class TableLayout extends ConsumerWidget {
                               player: eastPlayer,
                               showCards: showEast,
                               cardH: sideCardH,
+                              maxWidth: sideW,
                               isCurrentTurn: eastPlayer.seat == currentTurn,
                               isTrumpCaller: eastPlayer.seat == trumpCaller,
                               animDelay: const Duration(milliseconds: 300),
@@ -158,8 +170,10 @@ class TableLayout extends ConsumerWidget {
                 ],
               ),
 
-              // Trump indicator — overlaid in upper-center of trick area
-              if (roundState.trumpSuit != null)
+              // Trump indicator — only shown after the first card has been played
+              if (roundState.trumpSuit != null &&
+                  (roundState.completedTricks.isNotEmpty ||
+                   (roundState.currentTrick != null && !roundState.currentTrick!.isEmpty)))
                 Positioned(
                   top: northH + 4,
                   left: sideW,
@@ -167,6 +181,7 @@ class TableLayout extends ConsumerWidget {
                   child: Center(
                     child: TrumpIndicator(
                       trumpSuit: roundState.trumpSuit,
+                      trumpCard: roundState.trumpCard,
                       trumpMakingTeam: roundState.trumpMakingTeam,
                     ),
                   ),
@@ -241,6 +256,7 @@ class _SidePlayer extends StatelessWidget {
   final Player player;
   final bool showCards;
   final double cardH;
+  final double maxWidth;
   final bool isCurrentTurn;
   final bool isTrumpCaller;
   final Duration animDelay;
@@ -249,6 +265,7 @@ class _SidePlayer extends StatelessWidget {
     required this.player,
     required this.showCards,
     required this.cardH,
+    required this.maxWidth,
     required this.isCurrentTurn,
     required this.isTrumpCaller,
     required this.animDelay,
@@ -266,11 +283,18 @@ class _SidePlayer extends StatelessWidget {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          _PlayerNameBadge(
-            name: player.name,
-            isCurrentTurn: isCurrentTurn,
-            isTrumpCaller: isTrumpCaller,
-            teamNumber: player.seat.teamNumber,
+          // Constrain name badge to available side-column width to prevent right overflow
+          SizedBox(
+            width: maxWidth,
+            child: FittedBox(
+              fit: BoxFit.scaleDown,
+              child: _PlayerNameBadge(
+                name: player.name,
+                isCurrentTurn: isCurrentTurn,
+                isTrumpCaller: isTrumpCaller,
+                teamNumber: player.seat.teamNumber,
+              ),
+            ),
           ),
           const SizedBox(height: 3),
           SizedBox(
@@ -430,35 +454,43 @@ class _TrickArea extends StatelessWidget {
       );
     }
 
-    // Cards fanned slightly around the center of the area
+    // Cards fanned slightly around the center of the area.
+    // Only animate the LATEST card — earlier cards are already visible.
+    final cardCount = trick.cardsPlayed.length;
+
     return SizedBox(
       width: areaSize,
       height: areaSize,
       child: Stack(
-        children: trick.cardsPlayed.entries.map((entry) {
+        children: trick.cardsPlayed.entries.toList().asMap().entries.map((indexed) {
+          final entryIndex = indexed.key;
+          final entry = indexed.value;
           final offset = _cardOffset(entry.key, areaSize, trickCardW, trickCardH);
-          final playOrder = trick.cardsPlayed.keys.toList().indexOf(entry.key);
+          final isNewest = entryIndex == cardCount - 1;
 
-          return Positioned(
-            left: offset.dx,
-            top: offset.dy,
-            child: PlayingCardWidget(
-              card: entry.value as game_card.Card,
-              width: trickCardW,
-              height: trickCardH,
-            )
+          Widget cardWidget = PlayingCardWidget(
+            card: entry.value,
+            width: trickCardW,
+            height: trickCardH,
+          );
+
+          // Only animate the newly-placed card so earlier cards don't re-fade
+          if (isNewest) {
+            cardWidget = cardWidget
                 .animate()
-                .fadeIn(
-                  duration: const Duration(milliseconds: 200),
-                  delay: Duration(milliseconds: 80 * playOrder),
-                )
+                .fadeIn(duration: const Duration(milliseconds: 200))
                 .scale(
                   begin: const Offset(0.8, 0.8),
                   end: const Offset(1.0, 1.0),
                   duration: const Duration(milliseconds: 250),
-                  delay: Duration(milliseconds: 80 * playOrder),
                   curve: Curves.easeOutBack,
-                ),
+                );
+          }
+
+          return Positioned(
+            left: offset.dx,
+            top: offset.dy,
+            child: cardWidget,
           );
         }).toList(),
       ),

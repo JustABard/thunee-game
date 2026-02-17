@@ -8,10 +8,11 @@ import 'suit.dart';
 
 /// Represents the phase of a round
 enum RoundPhase {
-  dealing, // Cards being dealt
-  bidding, // Players are bidding
-  playing, // Tricks being played
-  scoring, // Round finished, calculating scores
+  dealing,       // Cards being dealt
+  bidding,       // Players are bidding
+  choosingTrump, // Bid winner selects trump card (card stays in hand, suit becomes trump)
+  playing,       // Tricks being played
+  scoring,       // Round finished, calculating scores
 }
 
 /// Represents the complete state of a single round
@@ -25,8 +26,10 @@ class RoundState extends Equatable {
   final BidCall? highestBid; // Current highest bid
   final int passCount; // Number of consecutive passes
   final Suit? trumpSuit; // Trump suit for this round (from bid winner or first card)
+  final Card? trumpCard; // The actual card tapped to set trump (null if set by first lead)
   final int trumpMakingTeam; // Team that made trump (0 or 1)
   final Seat currentTurn; // Whose turn it is
+  final Seat dealer; // Who dealt this round
   /// The 2 cards per player held back until bidding completes.
   /// Non-null during [RoundPhase.bidding], cleared to null when playing begins.
   final List<List<Card>>? remainingCards;
@@ -41,8 +44,10 @@ class RoundState extends Equatable {
     this.highestBid,
     this.passCount = 0,
     this.trumpSuit,
+    this.trumpCard,
     this.trumpMakingTeam = 0,
     required this.currentTurn,
+    this.dealer = Seat.south,
     this.remainingCards,
   });
 
@@ -56,7 +61,8 @@ class RoundState extends Equatable {
       phase: RoundPhase.dealing,
       players: players,
       teams: teams,
-      currentTurn: dealer.next, // First to bid is left of dealer
+      dealer: dealer,
+      currentTurn: dealer.next, // First to bid is right of dealer (anti-clockwise)
     );
   }
 
@@ -137,8 +143,10 @@ class RoundState extends Equatable {
     BidCall? highestBid,
     int? passCount,
     Suit? trumpSuit,
+    Card? trumpCard,
     int? trumpMakingTeam,
     Seat? currentTurn,
+    Seat? dealer,
     List<List<Card>>? remainingCards,
   }) {
     return RoundState(
@@ -151,8 +159,10 @@ class RoundState extends Equatable {
       highestBid: highestBid ?? this.highestBid,
       passCount: passCount ?? this.passCount,
       trumpSuit: trumpSuit ?? this.trumpSuit,
+      trumpCard: trumpCard ?? this.trumpCard,
       trumpMakingTeam: trumpMakingTeam ?? this.trumpMakingTeam,
       currentTurn: currentTurn ?? this.currentTurn,
+      dealer: dealer ?? this.dealer,
       remainingCards: remainingCards ?? this.remainingCards,
     );
   }
@@ -179,8 +189,10 @@ class RoundState extends Equatable {
       highestBid: highestBid,
       passCount: passCount,
       trumpSuit: trumpSuit,
+      trumpCard: trumpCard,
       trumpMakingTeam: trumpMakingTeam,
       currentTurn: currentTurn,
+      dealer: dealer,
       remainingCards: null, // explicitly cleared
     );
   }
@@ -214,8 +226,10 @@ class RoundState extends Equatable {
         highestBid,
         passCount,
         trumpSuit,
+        trumpCard,
         trumpMakingTeam,
         currentTurn,
+        dealer,
         remainingCards,
       ];
 
