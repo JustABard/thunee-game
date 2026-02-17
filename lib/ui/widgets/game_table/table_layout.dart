@@ -36,6 +36,10 @@ class TableLayout extends ConsumerWidget {
     final showNorth = ref.watch(shouldShowCardsProvider(Seat.north));
     final showEast  = ref.watch(shouldShowCardsProvider(Seat.east));
 
+    // Who's acting and who called trump — used by player widgets for highlights
+    final currentTurn = roundState.currentTurn;
+    final trumpCaller = roundState.highestBid?.caller;
+
     return LayoutBuilder(
       builder: (context, constraints) {
         final w = constraints.maxWidth;
@@ -75,6 +79,8 @@ class TableLayout extends ConsumerWidget {
                         showCards: showNorth,
                         cardHeight: northCardH,
                         isTop: true,
+                        isCurrentTurn: northPlayer.seat == currentTurn,
+                        isTrumpCaller: northPlayer.seat == trumpCaller,
                         animDelay: const Duration(milliseconds: 200),
                       ),
                     ),
@@ -94,6 +100,8 @@ class TableLayout extends ConsumerWidget {
                               player: westPlayer,
                               showCards: showWest,
                               cardH: sideCardH,
+                              isCurrentTurn: westPlayer.seat == currentTurn,
+                              isTrumpCaller: westPlayer.seat == trumpCaller,
                               animDelay: const Duration(milliseconds: 100),
                             ),
                           ),
@@ -121,6 +129,8 @@ class TableLayout extends ConsumerWidget {
                               player: eastPlayer,
                               showCards: showEast,
                               cardH: sideCardH,
+                              isCurrentTurn: eastPlayer.seat == currentTurn,
+                              isTrumpCaller: eastPlayer.seat == trumpCaller,
                               animDelay: const Duration(milliseconds: 300),
                             ),
                           ),
@@ -139,6 +149,8 @@ class TableLayout extends ConsumerWidget {
                         showCards: showSouth,
                         cardHeight: southCardH,
                         isTop: false,
+                        isCurrentTurn: southPlayer.seat == currentTurn,
+                        isTrumpCaller: southPlayer.seat == trumpCaller,
                         animDelay: Duration.zero,
                       ),
                     ),
@@ -174,6 +186,8 @@ class _HorizontalPlayer extends StatelessWidget {
   final bool showCards;
   final double cardHeight;
   final bool isTop;
+  final bool isCurrentTurn;
+  final bool isTrumpCaller;
   final Duration animDelay;
 
   const _HorizontalPlayer({
@@ -181,18 +195,18 @@ class _HorizontalPlayer extends StatelessWidget {
     required this.showCards,
     required this.cardHeight,
     required this.isTop,
+    required this.isCurrentTurn,
+    required this.isTrumpCaller,
     required this.animDelay,
   });
 
   @override
   Widget build(BuildContext context) {
-    final nameLabel = Text(
-      player.name,
-      style: const TextStyle(
-        color: Colors.white,
-        fontWeight: FontWeight.bold,
-        fontSize: 11,
-      ),
+    final nameLabel = _PlayerNameBadge(
+      name: player.name,
+      isCurrentTurn: isCurrentTurn,
+      isTrumpCaller: isTrumpCaller,
+      teamNumber: player.seat.teamNumber,
     );
 
     final cardRow = showCards
@@ -227,12 +241,16 @@ class _SidePlayer extends StatelessWidget {
   final Player player;
   final bool showCards;
   final double cardH;
+  final bool isCurrentTurn;
+  final bool isTrumpCaller;
   final Duration animDelay;
 
   const _SidePlayer({
     required this.player,
     required this.showCards,
     required this.cardH,
+    required this.isCurrentTurn,
+    required this.isTrumpCaller,
     required this.animDelay,
   });
 
@@ -248,14 +266,11 @@ class _SidePlayer extends StatelessWidget {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Text(
-            player.name,
-            style: const TextStyle(
-              color: Colors.white,
-              fontWeight: FontWeight.bold,
-              fontSize: 10,
-            ),
-            overflow: TextOverflow.ellipsis,
+          _PlayerNameBadge(
+            name: player.name,
+            isCurrentTurn: isCurrentTurn,
+            isTrumpCaller: isTrumpCaller,
+            teamNumber: player.seat.teamNumber,
           ),
           const SizedBox(height: 3),
           SizedBox(
@@ -288,6 +303,75 @@ class _SidePlayer extends StatelessWidget {
             delay: animDelay,
             curve: Curves.easeOut,
           ),
+    );
+  }
+}
+
+// ── Player name badge — highlights current turn and trump caller ────────────
+
+class _PlayerNameBadge extends StatelessWidget {
+  final String name;
+  final bool isCurrentTurn;
+  final bool isTrumpCaller;
+  final int teamNumber;
+
+  const _PlayerNameBadge({
+    required this.name,
+    required this.isCurrentTurn,
+    required this.isTrumpCaller,
+    required this.teamNumber,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    // Team colour used for the trump badge
+    final teamColor = teamNumber == 0 ? Colors.blue.shade400 : Colors.red.shade400;
+
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        // ── Active-turn pill ──────────────────────────────────────────
+        AnimatedContainer(
+          duration: const Duration(milliseconds: 250),
+          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+          decoration: BoxDecoration(
+            color: isCurrentTurn ? Colors.yellow.shade600 : Colors.transparent,
+            borderRadius: BorderRadius.circular(6),
+            border: isCurrentTurn
+                ? Border.all(color: Colors.yellow.shade300, width: 1)
+                : null,
+          ),
+          child: Text(
+            name,
+            style: TextStyle(
+              color: isCurrentTurn ? Colors.black87 : Colors.white,
+              fontWeight: FontWeight.bold,
+              fontSize: 11,
+            ),
+          ),
+        ),
+
+        // ── Trump-caller badge ────────────────────────────────────────
+        if (isTrumpCaller) ...[
+          const SizedBox(width: 4),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+            decoration: BoxDecoration(
+              color: teamColor,
+              borderRadius: BorderRadius.circular(4),
+            ),
+            child: const Text(
+              'TRUMP',
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 8,
+                fontWeight: FontWeight.bold,
+                letterSpacing: 0.5,
+              ),
+            ),
+          ),
+        ],
+      ],
     );
   }
 }

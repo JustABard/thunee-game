@@ -7,8 +7,8 @@ class TurnManager {
   /// Determines the next player's turn after the current action.
   ///
   /// Rules:
-  /// - During bidding: clockwise from current player
-  /// - During play: clockwise from current player until trick complete
+  /// - During bidding: anti-clockwise from current player (right-hand goes next)
+  /// - During play: anti-clockwise from current player until trick complete
   /// - After trick complete: winner of trick leads next trick
   Seat getNextTurn(RoundState state) {
     switch (state.phase) {
@@ -17,7 +17,7 @@ class TurnManager {
         return state.currentTurn;
 
       case RoundPhase.bidding:
-        // Clockwise progression during bidding
+        // Anti-clockwise progression during bidding (right-hand player next)
         return state.currentTurn.next;
 
       case RoundPhase.playing:

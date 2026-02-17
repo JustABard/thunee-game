@@ -3,23 +3,25 @@ import 'card.dart';
 import 'suit.dart';
 
 /// Represents a player's seat position at the table.
-/// Follows clockwise order: South -> West -> North -> East
+/// Turn order is anti-clockwise (right-hand player goes next):
+///   South → East → North → West → South
 enum Seat {
   south, // Player 1 (bottom)
   west, // Player 2 (left)
   north, // Player 3 (top)
   east; // Player 4 (right)
 
-  /// Returns the next seat in clockwise order
+  /// Returns the next seat in anti-clockwise order (right-hand player).
+  ///   South → East → North → West → South
   Seat get next {
     switch (this) {
       case Seat.south:
-        return Seat.west;
-      case Seat.west:
-        return Seat.north;
-      case Seat.north:
         return Seat.east;
       case Seat.east:
+        return Seat.north;
+      case Seat.north:
+        return Seat.west;
+      case Seat.west:
         return Seat.south;
     }
   }
