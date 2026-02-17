@@ -1,0 +1,43 @@
+workflows:
+  android-release-apk:
+    name: Thunee - Android Release APK
+    instance_type: linux_x2
+    max_build_duration: 60
+    environment:
+      flutter: stable
+      android_signing:
+        - thunee_keystore  # Configure this keystore in Codemagic UI → Teams → Code signing
+    triggering:
+      events:
+        - push
+        - tag
+      branch_patterns:
+        - pattern: "main"
+          include: true
+          source: true
+    scripts:
+      - name: Get Flutter packages
+        script: |
+          flutter pub get
+      - name: Analyze
+        script: |
+          flutter analyze --no-fatal-infos
+        ignore_failure: true
+      - name: Run tests
+        script: |
+          flutter test
+        ignore_failure: true
+      - name: Build release APK
+        script: |
+          flutter build apk --release \
+            --build-number=$BUILD_NUMBER \
+            --build-name=1.0.$BUILD_NUMBER
+    artifacts:
+      - build/app/outputs/flutter-apk/app-release.apk
+    publishing:
+      email:
+        recipients:
+          - justabard@proton.me
+        notify:
+          success: true
+          failure: true
