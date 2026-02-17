@@ -34,7 +34,7 @@ class CardHand extends ConsumerWidget {
     final isHumanTurn = ref.watch(isHumanTurnProvider);
 
     return SizedBox(
-      height: ch + 8, // small buffer for shadow
+      height: ch, // exact card height; box shadow extends outside but doesn't cause overflow
       child: Row(
         mainAxisAlignment: MainAxisAlignment.center,
         mainAxisSize: MainAxisSize.min,

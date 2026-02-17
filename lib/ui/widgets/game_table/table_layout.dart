@@ -52,8 +52,9 @@ class TableLayout extends ConsumerWidget {
         final sideW   = w * sideFrac;
         final centerW = w - sideW * 2;
 
-        // Card heights derived from zone — clamped to sensible touch targets
-        final southCardH = (southH - 18).clamp(48.0, 76.0);
+        // Card heights derived from zone — clamped conservatively to leave room
+        // for the player name label (≈14px) and the 3px spacer in _HorizontalPlayer
+        final southCardH = (southH - 22).clamp(44.0, 68.0);
         final northCardH = (northH - 16).clamp(28.0, 44.0);
         final sideCardH  = (centerH * 0.20).clamp(24.0, 42.0);
         final trickCardH = (centerH * 0.32).clamp(38.0, 68.0);
@@ -202,19 +203,21 @@ class _HorizontalPlayer extends StatelessWidget {
         ? [nameLabel, const SizedBox(height: 3), cardRow]
         : [cardRow, const SizedBox(height: 3), nameLabel];
 
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: children,
-    )
-        .animate()
-        .fadeIn(duration: const Duration(milliseconds: 400), delay: animDelay)
-        .slideY(
-          begin: isTop ? -0.2 : 0.2,
-          end: 0,
-          duration: const Duration(milliseconds: 400),
-          delay: animDelay,
-          curve: Curves.easeOut,
-        );
+    return ClipRect(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: children,
+      )
+          .animate()
+          .fadeIn(duration: const Duration(milliseconds: 400), delay: animDelay)
+          .slideY(
+            begin: isTop ? -0.2 : 0.2,
+            end: 0,
+            duration: const Duration(milliseconds: 400),
+            delay: animDelay,
+            curve: Curves.easeOut,
+          ),
+    );
   }
 }
 
@@ -241,49 +244,51 @@ class _SidePlayer extends StatelessWidget {
     const overlapOffset = 10.0;
     final stackH = (count - 1) * overlapOffset + cardH;
 
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Text(
-          player.name,
-          style: const TextStyle(
-            color: Colors.white,
-            fontWeight: FontWeight.bold,
-            fontSize: 10,
+    return ClipRect(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            player.name,
+            style: const TextStyle(
+              color: Colors.white,
+              fontWeight: FontWeight.bold,
+              fontSize: 10,
+            ),
+            overflow: TextOverflow.ellipsis,
           ),
-          overflow: TextOverflow.ellipsis,
-        ),
-        const SizedBox(height: 3),
-        SizedBox(
-          width: cardW,
-          height: stackH,
-          child: Stack(
-            children: List.generate(count, (i) {
-              final card = showCards && i < player.hand.length
-                  ? player.hand[i]
-                  : null;
-              return Positioned(
-                top: i * overlapOffset,
-                child: PlayingCardWidget(
-                  card: card,
-                  width: cardW,
-                  height: cardH,
-                ),
-              );
-            }),
+          const SizedBox(height: 3),
+          SizedBox(
+            width: cardW,
+            height: stackH,
+            child: Stack(
+              children: List.generate(count, (i) {
+                final card = showCards && i < player.hand.length
+                    ? player.hand[i]
+                    : null;
+                return Positioned(
+                  top: i * overlapOffset,
+                  child: PlayingCardWidget(
+                    card: card,
+                    width: cardW,
+                    height: cardH,
+                  ),
+                );
+              }),
+            ),
           ),
-        ),
-      ],
-    )
-        .animate()
-        .fadeIn(duration: const Duration(milliseconds: 400), delay: animDelay)
-        .slideX(
-          begin: -0.2,
-          end: 0,
-          duration: const Duration(milliseconds: 400),
-          delay: animDelay,
-          curve: Curves.easeOut,
-        );
+        ],
+      )
+          .animate()
+          .fadeIn(duration: const Duration(milliseconds: 400), delay: animDelay)
+          .slideX(
+            begin: -0.2,
+            end: 0,
+            duration: const Duration(milliseconds: 400),
+            delay: animDelay,
+            curve: Curves.easeOut,
+          ),
+    );
   }
 }
 
