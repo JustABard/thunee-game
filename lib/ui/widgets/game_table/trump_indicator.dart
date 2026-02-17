@@ -22,7 +22,7 @@ class TrumpIndicator extends StatelessWidget {
     final teamColor = trumpMakingTeam == 0 ? Colors.blue : Colors.red;
 
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
       decoration: BoxDecoration(
         color: teamColor.withOpacity(0.9),
         borderRadius: BorderRadius.circular(20),
@@ -43,14 +43,14 @@ class TrumpIndicator extends StatelessWidget {
             style: TextStyle(
               color: Colors.white,
               fontWeight: FontWeight.bold,
-              fontSize: 14,
+              fontSize: 11,
             ),
           ),
-          const SizedBox(width: 8),
+          const SizedBox(width: 6),
           Text(
             trumpSuit!.symbol,
             style: TextStyle(
-              fontSize: 24,
+              fontSize: 16,
               color: trumpSuit!.isRed ? Colors.red.shade900 : Colors.black,
               shadows: [
                 const Shadow(

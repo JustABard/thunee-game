@@ -41,10 +41,10 @@ class TableLayout extends ConsumerWidget {
         final w = constraints.maxWidth;
         final h = constraints.maxHeight;
 
-        // Row/column fractions
-        const northFrac = 0.22;
-        const southFrac = 0.32;
-        const sideFrac  = 0.13; // fraction of width for each side player
+        // Row/column fractions — sized conservatively so nothing overflows
+        const northFrac = 0.18;
+        const southFrac = 0.26;
+        const sideFrac  = 0.10; // fraction of width for each side column
 
         final northH = h * northFrac;
         final southH = h * southFrac;
@@ -52,11 +52,11 @@ class TableLayout extends ConsumerWidget {
         final sideW   = w * sideFrac;
         final centerW = w - sideW * 2;
 
-        // Card heights for each zone
-        final southCardH = (southH - 22).clamp(60.0, 110.0);
-        final northCardH = (northH - 18).clamp(36.0, 60.0);
-        final sideCardH  = (centerH * 0.25).clamp(30.0, 55.0);
-        final trickCardH = (centerH * 0.40).clamp(48.0, 90.0);
+        // Card heights derived from zone — clamped to sensible touch targets
+        final southCardH = (southH - 18).clamp(48.0, 76.0);
+        final northCardH = (northH - 16).clamp(28.0, 44.0);
+        final sideCardH  = (centerH * 0.20).clamp(24.0, 42.0);
+        final trickCardH = (centerH * 0.32).clamp(38.0, 68.0);
 
         return Container(
           color: Colors.green.shade800,
@@ -106,7 +106,7 @@ class TableLayout extends ConsumerWidget {
                             child: _TrickArea(
                               roundState: roundState,
                               trickCardH: trickCardH,
-                              areaSize: centerH * 0.88,
+                              areaSize: (centerH * 0.78).clamp(80.0, 200.0),
                             ),
                           ),
                         ),

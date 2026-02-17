@@ -3,7 +3,7 @@ import 'mode_select_screen.dart';
 import 'settings_screen.dart';
 import 'rules_screen.dart';
 
-/// Home screen with main menu
+/// Home screen — landscape-optimised two-column layout.
 class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});
 
@@ -22,72 +22,82 @@ class HomeScreen extends StatelessWidget {
           ),
         ),
         child: SafeArea(
-          child: Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                // Title
-                Text(
-                  'THUNEE',
-                  style: Theme.of(context).textTheme.displayLarge?.copyWith(
-                        fontWeight: FontWeight.bold,
-                        color: Theme.of(context).colorScheme.onPrimaryContainer,
+          child: Row(
+            children: [
+              // ── Left: branding ───────────────────────────────────────
+              Expanded(
+                flex: 4,
+                child: Center(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        'THUNEE',
+                        style: Theme.of(context).textTheme.displaySmall?.copyWith(
+                              fontWeight: FontWeight.bold,
+                              color: Theme.of(context).colorScheme.onPrimaryContainer,
+                            ),
                       ),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  'Traditional South African Card Game',
-                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                        color: Theme.of(context).colorScheme.onPrimaryContainer.withOpacity(0.8),
+                      const SizedBox(height: 6),
+                      Text(
+                        'Traditional South African Card Game',
+                        textAlign: TextAlign.center,
+                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                              color: Theme.of(context)
+                                  .colorScheme
+                                  .onPrimaryContainer
+                                  .withOpacity(0.75),
+                            ),
                       ),
+                    ],
+                  ),
                 ),
-                const SizedBox(height: 64),
+              ),
 
-                // Play button
-                _MenuButton(
-                  icon: Icons.play_arrow_rounded,
-                  label: 'Play Game',
-                  onPressed: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => const ModeSelectScreen(),
+              // ── Right: menu buttons ──────────────────────────────────
+              Expanded(
+                flex: 3,
+                child: Center(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      _MenuButton(
+                        icon: Icons.play_arrow_rounded,
+                        label: 'Play Game',
+                        onPressed: () => Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => const ModeSelectScreen(),
+                          ),
+                        ),
                       ),
-                    );
-                  },
-                ),
-                const SizedBox(height: 16),
-
-                // Settings button
-                _MenuButton(
-                  icon: Icons.settings,
-                  label: 'Settings',
-                  onPressed: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => const SettingsScreen(),
+                      const SizedBox(height: 10),
+                      _MenuButton(
+                        icon: Icons.settings,
+                        label: 'Settings',
+                        onPressed: () => Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => const SettingsScreen(),
+                          ),
+                        ),
                       ),
-                    );
-                  },
-                ),
-                const SizedBox(height: 16),
-
-                // Rules button
-                _MenuButton(
-                  icon: Icons.book,
-                  label: 'How to Play',
-                  onPressed: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => const RulesScreen(),
+                      const SizedBox(height: 10),
+                      _MenuButton(
+                        icon: Icons.book,
+                        label: 'How to Play',
+                        onPressed: () => Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => const RulesScreen(),
+                          ),
+                        ),
                       ),
-                    );
-                  },
+                    ],
+                  ),
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
         ),
       ),
@@ -109,18 +119,18 @@ class _MenuButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return SizedBox(
-      width: 280,
-      height: 60,
+      width: 220,
+      height: 44,
       child: ElevatedButton.icon(
         onPressed: onPressed,
-        icon: Icon(icon, size: 28),
+        icon: Icon(icon, size: 20),
         label: Text(
           label,
-          style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
+          style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
         ),
         style: ElevatedButton.styleFrom(
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
+            borderRadius: BorderRadius.circular(12),
           ),
         ),
       ),

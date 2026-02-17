@@ -76,7 +76,7 @@ class _ScoreChipState extends State<_ScoreChip> {
   @override
   Widget build(BuildContext context) {
     final chip = Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
       decoration: BoxDecoration(
         color: widget.color,
         borderRadius: BorderRadius.circular(16),
@@ -95,6 +95,7 @@ class _ScoreChipState extends State<_ScoreChip> {
         style: const TextStyle(
           color: Colors.white,
           fontWeight: FontWeight.bold,
+          fontSize: 11,
         ),
       ),
     );

@@ -4,41 +4,61 @@ import '../../domain/models/player.dart';
 import '../../state/providers/game_state_provider.dart';
 import 'game_table_screen.dart';
 
-/// Screen for selecting game mode (1 human vs 3 bots, or 2 humans vs 2 bots)
+/// Screen for selecting game mode — landscape-optimised side-by-side layout.
 class ModeSelectScreen extends ConsumerWidget {
   const ModeSelectScreen({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Select Game Mode'),
-      ),
-      body: Center(
+      body: SafeArea(
         child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Text(
-              'Choose Your Mode',
-              style: Theme.of(context).textTheme.headlineMedium,
+            // ── Header row with back button and title ────────────────
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              child: Row(
+                children: [
+                  IconButton(
+                    icon: const Icon(Icons.arrow_back),
+                    onPressed: () => Navigator.pop(context),
+                  ),
+                  Text(
+                    'Select Game Mode',
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.bold,
+                        ),
+                  ),
+                ],
+              ),
             ),
-            const SizedBox(height: 48),
 
-            // 1 Human + 3 Bots
-            _ModeCard(
-              title: 'Solo Play',
-              description: '1 Human vs 3 Bots',
-              icon: Icons.person,
-              onTap: () => _startGame(context, ref, humanCount: 1),
-            ),
-            const SizedBox(height: 24),
-
-            // 2 Humans + 2 Bots (Pass and Play)
-            _ModeCard(
-              title: 'Pass & Play',
-              description: '2 Humans vs 2 Bots',
-              icon: Icons.people,
-              onTap: () => _startGame(context, ref, humanCount: 2),
+            // ── Two mode cards side by side ──────────────────────────
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(12, 4, 12, 12),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: _ModeCard(
+                        title: 'Solo Play',
+                        description: '1 Human vs 3 Bots',
+                        icon: Icons.person,
+                        onTap: () => _startGame(context, ref, humanCount: 1),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: _ModeCard(
+                        title: 'Pass & Play',
+                        description: '2 Humans vs 2 Bots',
+                        icon: Icons.people,
+                        onTap: () => _startGame(context, ref, humanCount: 2),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
             ),
           ],
         ),
@@ -46,16 +66,10 @@ class ModeSelectScreen extends ConsumerWidget {
     );
   }
 
-  void _startGame(BuildContext context, WidgetRef ref, {required int humanCount}) {
-    // Create players
+  void _startGame(BuildContext context, WidgetRef ref,
+      {required int humanCount}) {
     final players = [
-      Player(
-        id: '1',
-        name: 'You',
-        seat: Seat.south,
-        hand: [],
-        isBot: false,
-      ),
+      Player(id: '1', name: 'You', seat: Seat.south, hand: [], isBot: false),
       Player(
         id: '2',
         name: humanCount == 2 ? 'Player 2' : 'Bot West',
@@ -63,31 +77,15 @@ class ModeSelectScreen extends ConsumerWidget {
         hand: [],
         isBot: humanCount == 1,
       ),
-      Player(
-        id: '3',
-        name: 'Bot North',
-        seat: Seat.north,
-        hand: [],
-        isBot: true,
-      ),
-      Player(
-        id: '4',
-        name: 'Bot East',
-        seat: Seat.east,
-        hand: [],
-        isBot: true,
-      ),
+      Player(id: '3', name: 'Bot North', seat: Seat.north, hand: [], isBot: true),
+      Player(id: '4', name: 'Bot East', seat: Seat.east, hand: [], isBot: true),
     ];
 
-    // Start new match
     ref.read(matchStateProvider.notifier).startNewMatch(players);
 
-    // Navigate to game table
     Navigator.pushReplacement(
       context,
-      MaterialPageRoute(
-        builder: (context) => const GameTableScreen(),
-      ),
+      MaterialPageRoute(builder: (_) => const GameTableScreen()),
     );
   }
 }
@@ -107,33 +105,35 @@ class _ModeCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
-      width: 320,
-      child: Card(
-        child: InkWell(
-          onTap: onTap,
-          borderRadius: BorderRadius.circular(12),
-          child: Padding(
-            padding: const EdgeInsets.all(24),
-            child: Column(
-              children: [
-                Icon(icon, size: 64, color: Theme.of(context).colorScheme.primary),
-                const SizedBox(height: 16),
-                Text(
-                  title,
-                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                        fontWeight: FontWeight.bold,
-                      ),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  description,
-                  style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                        color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7),
-                      ),
-                ),
-              ],
-            ),
+    return Card(
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(12),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(icon, size: 40, color: Theme.of(context).colorScheme.primary),
+              const SizedBox(height: 8),
+              Text(
+                title,
+                style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                description,
+                textAlign: TextAlign.center,
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: Theme.of(context)
+                          .colorScheme
+                          .onSurface
+                          .withOpacity(0.7),
+                    ),
+              ),
+            ],
           ),
         ),
       ),
