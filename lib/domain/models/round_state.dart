@@ -27,6 +27,9 @@ class RoundState extends Equatable {
   final Suit? trumpSuit; // Trump suit for this round (from bid winner or first card)
   final int trumpMakingTeam; // Team that made trump (0 or 1)
   final Seat currentTurn; // Whose turn it is
+  /// The 2 cards per player held back until bidding completes.
+  /// Non-null during [RoundPhase.bidding], cleared to null when playing begins.
+  final List<List<Card>>? remainingCards;
 
   const RoundState({
     required this.phase,
@@ -40,6 +43,7 @@ class RoundState extends Equatable {
     this.trumpSuit,
     this.trumpMakingTeam = 0,
     required this.currentTurn,
+    this.remainingCards,
   });
 
   /// Creates initial round state for dealing
@@ -120,7 +124,9 @@ class RoundState extends Equatable {
     return completedTricks.isEmpty ? null : completedTricks.last;
   }
 
-  /// Creates a copy with updated fields
+  /// Creates a copy with updated fields.
+  /// Note: [remainingCards] is preserved from the current state unless explicitly
+  /// provided. To clear it, use [distributeRemainingCards] instead.
   RoundState copyWith({
     RoundPhase? phase,
     List<Player>? players,
@@ -133,6 +139,7 @@ class RoundState extends Equatable {
     Suit? trumpSuit,
     int? trumpMakingTeam,
     Seat? currentTurn,
+    List<List<Card>>? remainingCards,
   }) {
     return RoundState(
       phase: phase ?? this.phase,
@@ -146,6 +153,35 @@ class RoundState extends Equatable {
       trumpSuit: trumpSuit ?? this.trumpSuit,
       trumpMakingTeam: trumpMakingTeam ?? this.trumpMakingTeam,
       currentTurn: currentTurn ?? this.currentTurn,
+      remainingCards: remainingCards ?? this.remainingCards,
+    );
+  }
+
+  /// Distributes the held-back 2 cards to each player and clears [remainingCards].
+  /// Returns a new state with players holding all 6 cards and [remainingCards] null.
+  RoundState distributeRemainingCards() {
+    if (remainingCards == null) return this;
+
+    final updatedPlayers = players.asMap().entries.map((entry) {
+      final index = entry.key;
+      final player = entry.value;
+      final extra = remainingCards![index];
+      return player.copyWith(hand: [...player.hand, ...extra]);
+    }).toList();
+
+    return RoundState(
+      phase: phase,
+      players: updatedPlayers,
+      teams: teams,
+      completedTricks: completedTricks,
+      currentTrick: currentTrick,
+      callHistory: callHistory,
+      highestBid: highestBid,
+      passCount: passCount,
+      trumpSuit: trumpSuit,
+      trumpMakingTeam: trumpMakingTeam,
+      currentTurn: currentTurn,
+      remainingCards: null, // explicitly cleared
     );
   }
 
@@ -180,6 +216,7 @@ class RoundState extends Equatable {
         trumpSuit,
         trumpMakingTeam,
         currentTurn,
+        remainingCards,
       ];
 
   @override

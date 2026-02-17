@@ -67,14 +67,14 @@ class GameEngine {
       return const GameActionResult.error('Round already in progress');
     }
 
-    // Deal cards
-    final hands = deckManager.dealNewGame();
+    // Deal 4 cards to each player; hold back 2 per player until bidding completes
+    final split = deckManager.dealSplit();
 
-    // Update players with their hands
+    // Update players with their initial 4-card hands
     final updatedPlayers = matchState.players.asMap().entries.map((entry) {
       final index = entry.key;
       final player = entry.value;
-      return player.copyWith(hand: hands[index]);
+      return player.copyWith(hand: split.initial[index]);
     }).toList();
 
     // Reset teams for new round
@@ -87,8 +87,11 @@ class GameEngine {
       dealer: dealer,
     );
 
-    // Transition to bidding phase
-    final biddingState = roundState.copyWith(phase: RoundPhase.bidding);
+    // Transition to bidding phase, storing the held-back cards
+    final biddingState = roundState.copyWith(
+      phase: RoundPhase.bidding,
+      remainingCards: split.remaining,
+    );
 
     final newMatchState = matchState.startNewRound(biddingState);
 
@@ -153,28 +156,24 @@ class GameEngine {
     return GameActionResult.success(newState: finalState);
   }
 
-  /// Checks if bidding is complete and transitions to playing if needed
+  /// Checks if bidding is complete and transitions to playing if needed.
+  /// When transitioning, distributes the held-back 2 cards to each player.
   RoundState _checkBiddingComplete(RoundState state) {
     if (turnManager.shouldTransitionPhase(state)) {
       final nextPhase = turnManager.getNextPhase(state);
 
       if (nextPhase == RoundPhase.playing) {
+        // Distribute the held-back 2 cards before play begins
+        final stateWithFullHands = state.distributeRemainingCards();
+
         // Determine first trick leader
-        final leader = turnManager.getFirstTrickLeader(state);
+        final leader = turnManager.getFirstTrickLeader(stateWithFullHands);
         final trick = Trick.empty(leader);
 
-        // Set trump suit if we have a bid
-        Suit? trumpSuit = state.trumpSuit;
-        if (state.highestBid != null && trumpSuit == null) {
-          // Trump will be determined by first card led (or from special call)
-          // For now, leave it null until first card is played
-        }
-
-        return state.copyWith(
+        return stateWithFullHands.copyWith(
           phase: nextPhase,
           currentTrick: trick,
           currentTurn: leader,
-          trumpSuit: trumpSuit,
         );
       }
     }

@@ -75,4 +75,27 @@ class DeckManager {
     final deck = createShuffledDeck();
     return dealCards(deck);
   }
+
+  /// Deals cards in two rounds per Thunee rules:
+  ///   - 4 cards dealt initially (bidding happens on these)
+  ///   - 2 cards held back and given to each player after bidding
+  /// Returns a record with `initial` (4 cards each) and `remaining` (2 cards each).
+  ({List<List<Card>> initial, List<List<Card>> remaining}) dealSplit() {
+    final deck = createShuffledDeck();
+
+    final initial = List.generate(TOTAL_PLAYERS, (_) => <Card>[]);
+    final remaining = List.generate(TOTAL_PLAYERS, (_) => <Card>[]);
+
+    // First 16 cards go to players round-robin (4 each)
+    for (int i = 0; i < TOTAL_PLAYERS * INITIAL_DEAL_CARDS; i++) {
+      initial[i % TOTAL_PLAYERS].add(deck[i]);
+    }
+
+    // Remaining 8 cards (2 each) held back until bidding completes
+    for (int i = TOTAL_PLAYERS * INITIAL_DEAL_CARDS; i < deck.length; i++) {
+      remaining[i % TOTAL_PLAYERS].add(deck[i]);
+    }
+
+    return (initial: initial, remaining: remaining);
+  }
 }

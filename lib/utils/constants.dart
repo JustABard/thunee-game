@@ -19,6 +19,8 @@ const int CARDS_PER_SUIT = 6;
 const int TOTAL_SUITS = 4;
 const int TOTAL_CARDS = 24; // 6 cards × 4 suits
 const int CARDS_PER_PLAYER = 6;
+const int INITIAL_DEAL_CARDS = 4; // Cards dealt before bidding
+const int REMAINING_DEAL_CARDS = 2; // Cards dealt after bidding
 const int TOTAL_PLAYERS = 4;
 const int TRICKS_PER_ROUND = 6;
 

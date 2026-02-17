@@ -110,24 +110,20 @@ class CallDecisionMaker {
     return false;
   }
 
-  /// Can bid 30.
+  /// Can bid 30. Called during 4-card bidding phase.
   /// Requires one of:
-  ///   - J + 4+ same suit (near-monopoly with Jack)
-  ///   - J+Q+K same suit + another power card (9 or A) elsewhere
-  ///   - 5+ cards same suit
+  ///   - J + all 4 cards same suit (J + 3 others, same suit)
+  ///   - J+Q+K same suit + the 4th card is a power card (9 or A) in another suit
   bool _meets30Qualifier(List<Card> hand, Map<Suit, int> suitCounts) {
     for (final suit in Suit.values) {
       final count = suitCounts[suit] ?? 0;
-
-      // 5+ cards same suit
-      if (count >= 5) return true;
 
       if (count >= 3) {
         final hasJ = hand.any((c) => c.suit == suit && c.rank == Rank.jack);
         final hasQ = hand.any((c) => c.suit == suit && c.rank == Rank.queen);
         final hasK = hand.any((c) => c.suit == suit && c.rank == Rank.king);
 
-        // J + 4+ same suit
+        // J + 4 cards same suit (all 4 cards in one suit, including Jack)
         if (hasJ && count >= 4) return true;
 
         // J+Q+K same suit + extra power card (9 or A) in another suit
