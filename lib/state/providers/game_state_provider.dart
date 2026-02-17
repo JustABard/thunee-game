@@ -58,3 +58,62 @@ final legalCardsProvider = Provider<List<Card>>((ref) {
   final engine = ref.watch(gameEngineProvider);
   return engine.getLegalCards(roundState);
 });
+
+/// True when the human (Seat.south) is the trump chooser and must now tap a card to set trump.
+final isChoosingTrumpProvider = Provider<bool>((ref) {
+  final roundState = ref.watch(roundStateProvider);
+  if (roundState == null) return false;
+
+  // During choosingTrump, currentTurn is set to the trump chooser
+  return roundState.phase == RoundPhase.choosingTrump &&
+      roundState.currentTurn == Seat.south;
+});
+
+/// Tracks whether the human dismissed the Thunee/Royals call prompt this round.
+/// Resets to false whenever a new round starts (roundStateProvider changes).
+final thuneePromptDismissedProvider = StateProvider<bool>((ref) => false);
+
+/// True during the Thunee/Royals call window:
+/// playing phase has started, no tricks have been played yet, and no call has been made.
+final canCallThuneeProvider = Provider<bool>((ref) {
+  final roundState = ref.watch(roundStateProvider);
+  if (roundState == null) return false;
+
+  // Only during playing phase before first card
+  if (roundState.phase != RoundPhase.playing) return false;
+  if (roundState.completedTricks.isNotEmpty) return false;
+  if (roundState.currentTrick == null || !roundState.currentTrick!.isEmpty) return false;
+
+  // Only if no Thunee/Royals call has been made yet
+  if (roundState.activeThuneeCall != null) return false;
+
+  // Only show to human if they're on the trump-making team
+  if (Seat.south.teamNumber != roundState.trumpMakingTeam) return false;
+
+  // Hide if human dismissed the prompt
+  return !ref.watch(thuneePromptDismissedProvider);
+});
+
+/// True when the Jodi call window is open (notifier controls this flag)
+final jodiWindowOpenProvider = Provider<bool>((ref) {
+  final notifier = ref.watch(matchStateProvider.notifier);
+  ref.watch(matchStateProvider);
+  return notifier.jodiWindowOpen;
+});
+
+/// The round result description (null = no overlay showing)
+final roundResultProvider = Provider<String?>((ref) {
+  final notifier = ref.watch(matchStateProvider.notifier);
+  ref.watch(matchStateProvider);
+  return notifier.lastRoundResult;
+});
+
+/// Returns the available Jodi combos for the human player.
+/// Each combo is a list of cards (K+Q or J+Q+K same suit).
+final availableJodiCombosProvider = Provider<List<List<Card>>>((ref) {
+  final roundState = ref.watch(roundStateProvider);
+  if (roundState == null) return [];
+
+  final southPlayer = roundState.playerAt(Seat.south);
+  return GameStateNotifier.findJodiCombos(southPlayer.hand, roundState.trumpSuit);
+});

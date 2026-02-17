@@ -36,6 +36,10 @@ class TurnManager {
         // Trick in progress - next player clockwise
         return currentTrick.nextToPlay!;
 
+      case RoundPhase.choosingTrump:
+        // Bid winner holds the turn until they select trump
+        return state.currentTurn;
+
       case RoundPhase.scoring:
         // No more turns during scoring
         return state.currentTurn;
@@ -52,9 +56,13 @@ class TurnManager {
       case RoundPhase.bidding:
         // Check if bidding should end
         if (_shouldEndBidding(state)) {
-          return RoundPhase.playing;
+          return RoundPhase.choosingTrump;
         }
         return RoundPhase.bidding;
+
+      case RoundPhase.choosingTrump:
+        // Trump selection is handled explicitly in the engine; no auto-transition
+        return RoundPhase.choosingTrump;
 
       case RoundPhase.playing:
         // Check if all tricks are complete

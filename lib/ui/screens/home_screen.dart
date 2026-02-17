@@ -71,7 +71,7 @@ class HomeScreen extends StatelessWidget {
                           ),
                         ),
                       ),
-                      const SizedBox(height: 10),
+                      const SizedBox(height: 4),
                       _MenuButton(
                         icon: Icons.settings,
                         label: 'Settings',
@@ -82,7 +82,7 @@ class HomeScreen extends StatelessWidget {
                           ),
                         ),
                       ),
-                      const SizedBox(height: 10),
+                      const SizedBox(height: 4),
                       _MenuButton(
                         icon: Icons.book,
                         label: 'How to Play',

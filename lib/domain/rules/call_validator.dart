@@ -225,10 +225,12 @@ class CallValidator {
 
     // Check timing restriction if enabled
     if (config.enableFirstThirdOnlyJodiCalls) {
-      final trickNumber = state.completedTricks.length + 1; // Current trick (1-indexed)
-      if (trickNumber != 1 && trickNumber != 3) {
+      // Jodi window opens AFTER trick 1 or 3 completes, so completedTricks.length
+      // is already 1 or 3 at that point. Check the count directly.
+      final completedCount = state.completedTricks.length;
+      if (completedCount != 1 && completedCount != 3) {
         return const CallValidationResult.invalid(
-          'Jodi can only be called on tricks 1 or 3 (enableFirstThirdOnlyJodiCalls)',
+          'Jodi can only be called after tricks 1 or 3 (enableFirstThirdOnlyJodiCalls)',
         );
       }
     }

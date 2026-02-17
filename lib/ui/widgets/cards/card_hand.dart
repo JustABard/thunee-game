@@ -32,36 +32,54 @@ class CardHand extends ConsumerWidget {
 
     final legalCards = ref.watch(legalCardsProvider);
     final isHumanTurn = ref.watch(isHumanTurnProvider);
+    final isChoosingTrump = ref.watch(isChoosingTrumpProvider);
 
     return SizedBox(
-      height: ch, // exact card height; box shadow extends outside but doesn't cause overflow
+      height: ch,
       child: Row(
         mainAxisAlignment: MainAxisAlignment.center,
         mainAxisSize: MainAxisSize.min,
         children: cards.asMap().entries.map((entry) {
           final index = entry.key;
           final game_card.Card card = entry.value;
-          final isLegal = legalCards.contains(card);
-          final canPlay = isVisible && isHumanTurn && isLegal;
+
+          Widget cardWidget;
+
+          if (isChoosingTrump) {
+            // All cards are selectable as trump — green shimmer
+            cardWidget = PulseCardWidget(
+              card: card,
+              isLegal: true,
+              width: cw,
+              height: ch,
+              shimmerColor: Colors.green.withOpacity(0.45),
+              onTap: () => ref.read(matchStateProvider.notifier).selectTrump(card),
+            );
+          } else if (isVisible && isHumanTurn) {
+            // Normal play — legal cards highlighted yellow, illegal dimmed
+            final isLegal = legalCards.contains(card);
+            cardWidget = PulseCardWidget(
+              card: card,
+              isLegal: isLegal,
+              width: cw,
+              height: ch,
+              shimmerColor: Colors.yellow.withOpacity(0.3),
+              onTap: isLegal
+                  ? () => ref.read(matchStateProvider.notifier).playCard(card)
+                  : null,
+            );
+          } else {
+            cardWidget = PlayingCardWidget(
+              card: isVisible ? card : null,
+              width: cw,
+              height: ch,
+              isSelected: false,
+            );
+          }
 
           return Padding(
             padding: EdgeInsets.only(left: index > 0 ? 4 : 0),
-            child: isVisible && isHumanTurn
-                ? PulseCardWidget(
-                    card: card,
-                    isLegal: isLegal,
-                    width: cw,
-                    height: ch,
-                    onTap: canPlay
-                        ? () => ref.read(matchStateProvider.notifier).playCard(card)
-                        : null,
-                  )
-                : PlayingCardWidget(
-                    card: isVisible ? card : null,
-                    width: cw,
-                    height: ch,
-                    isSelected: false,
-                  ),
+            child: cardWidget,
           ).animate().fadeIn(
                 duration: const Duration(milliseconds: 300),
                 delay: Duration(milliseconds: 50 * index),

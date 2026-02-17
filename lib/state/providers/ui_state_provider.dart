@@ -88,3 +88,13 @@ final isBotTurnProvider = Provider<bool>((ref) {
   final currentPlayer = roundState.currentPlayer;
   return currentPlayer.isBot;
 });
+
+/// Holds the result text from the last scored round (null = no overlay).
+/// NOTE: The primary roundResultProvider is in game_state_provider.dart
+/// (reads from GameStateNotifier.lastRoundResult).
+class RoundResultNotifier extends StateNotifier<String?> {
+  RoundResultNotifier() : super(null);
+
+  void showResult(String result) => state = result;
+  void dismiss() => state = null;
+}

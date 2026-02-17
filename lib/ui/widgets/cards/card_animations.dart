@@ -249,6 +249,8 @@ class PulseCardWidget extends StatelessWidget {
   final double? width;
   final double? height;
   final VoidCallback? onTap;
+  /// Override shimmer colour (defaults to yellow for legal, green for trump-choosing)
+  final Color? shimmerColor;
 
   const PulseCardWidget({
     super.key,
@@ -258,6 +260,7 @@ class PulseCardWidget extends StatelessWidget {
     this.width,
     this.height,
     this.onTap,
+    this.shimmerColor,
   });
 
   @override
@@ -275,13 +278,15 @@ class PulseCardWidget extends StatelessWidget {
       return baseWidget.animate().fade(end: 0.5);
     }
 
+    final color = shimmerColor ?? Colors.yellow.withOpacity(0.3);
+
     return baseWidget
         .animate(
           onPlay: (controller) => controller.repeat(reverse: true),
         )
         .shimmer(
           duration: const Duration(milliseconds: 1500),
-          color: Colors.yellow.withOpacity(0.3),
+          color: color,
         );
   }
 }
