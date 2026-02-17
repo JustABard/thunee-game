@@ -33,3 +33,9 @@
 # kept. Suspend functions are wrapped in continuations where the type argument
 # is used.
 -keep,allowobfuscation,allowshrinking class kotlin.coroutines.Continuation
+
+# Suppress warnings for Play Core classes referenced by Flutter's embedding
+# (FlutterPlayStoreSplitApplication, PlayStoreDeferredComponentManager).
+# These code paths are only active when the app uses Play Store deferred
+# components / dynamic feature modules, which this app does not use.
+-dontwarn com.google.android.play.core.**

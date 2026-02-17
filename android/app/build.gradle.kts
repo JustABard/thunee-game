@@ -66,3 +66,11 @@ android {
 flutter {
     source = "../.."
 }
+
+dependencies {
+    // Required to resolve Play Core split-install classes referenced by Flutter's embedding.
+    // Flutter's FlutterPlayStoreSplitApplication and PlayStoreDeferredComponentManager reference
+    // com.google.android.play.core.* classes; without this dependency R8 (full mode) fails
+    // with "Missing class" errors during release builds.
+    implementation("com.google.android.play:feature-delivery:2.1.0")
+}
