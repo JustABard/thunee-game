@@ -10,9 +10,13 @@ import 'bot_policy.dart';
 
 /// Makes bidding and special call decisions for bots.
 ///
-/// Uses a Hand Control Confidence (HCC) model to reason probabilistically
-/// about bid levels. The bot avoids rigid/deterministic behaviour and
-/// adjusts risk tolerance based on whether Call & Loss is enabled.
+/// Bid levels are gated by hard structural qualifiers FIRST,
+/// then Hand Control Confidence (HCC) determines the exact level.
+///
+/// Qualifier rules (must meet to even consider that level):
+///   Bid 10 : Jack + same-suit card  OR  any Jodi (K+Q same suit)  OR  3+ same suit
+///   Bid 20 : J + 3+ same suit  OR  J+Q+K same suit  OR  4+ same suit  OR  J + any Jodi
+///   Bid 30 : J + 4+ same suit  OR  J+Q+K + extra power card  OR  5+ same suit
 class CallDecisionMaker {
   final GameConfig config;
   final Random _rng;
@@ -21,43 +25,135 @@ class CallDecisionMaker {
 
   // ─── Public API ────────────────────────────────────────────────────────────
 
-  /// Decides whether to bid and how much.
   BotDecision decideBid({
     required RoundState state,
     required Player bot,
   }) {
-    // Cannot call over yourself – always pass if already highest bidder.
     if (_isAlreadyHighestBidder(state, bot)) return PassBidDecision();
-
-    // Cannot call over a teammate (default config blocks this anyway,
-    // but we short-circuit early to avoid sending an illegal bid).
     if (_isTeammateBidLeading(state, bot)) return PassBidDecision();
 
-    final hcc = _computeHCC(bot);
+    final hand = bot.hand;
+    final suitCounts = _suitCounts(hand);
+
+    // Hard gate: if hand doesn't even qualify for a 10, always pass.
+    if (!_meets10Qualifier(hand, suitCounts)) return PassBidDecision();
+
+    final hcc = _computeHCC(hand, suitCounts);
+    final maxLevel = _maxBidLevel(hand, suitCounts);
 
     final existingBid = state.highestBid;
-
     if (existingBid == null) {
-      return _openingBidDecision(hcc);
+      return _openingBidDecision(hcc, maxLevel);
     } else {
-      return _responseBidDecision(hcc, existingBid, bot);
+      return _responseBidDecision(hcc, maxLevel, existingBid);
     }
   }
 
-  /// Decides whether to make a special call (Jodi etc.).
   BotDecision? decideSpecialCall({
     required RoundState state,
     required Player bot,
-  }) {
-    // Bots don't make special calls in this version.
-    return null;
+  }) => null;
+
+  // ─── Structural qualifiers ─────────────────────────────────────────────────
+
+  /// Can bid 10 at all.
+  /// Requires: J + same-suit card  OR  K+Q same suit  OR  3+ same suit.
+  bool _meets10Qualifier(List<Card> hand, Map<Suit, int> suitCounts) {
+    for (final suit in Suit.values) {
+      final count = suitCounts[suit] ?? 0;
+      // 3+ cards in same suit
+      if (count >= 3) return true;
+      // Jack present + at least 1 other card of same suit
+      if (count >= 2 && hand.any((c) => c.suit == suit && c.rank == Rank.jack)) {
+        return true;
+      }
+      // K+Q in same suit (Jodi potential)
+      if (count >= 2 &&
+          hand.any((c) => c.suit == suit && c.rank == Rank.king) &&
+          hand.any((c) => c.suit == suit && c.rank == Rank.queen)) {
+        return true;
+      }
+    }
+    return false;
   }
 
-  // ─── Helpers: bid eligibility ──────────────────────────────────────────────
+  /// Can bid 20.
+  /// Requires one of:
+  ///   - J + 3+ cards same suit (Jack with at least 2 other cards)
+  ///   - J+Q+K same suit (full Jodi + Jack)
+  ///   - 4+ cards same suit
+  ///   - Jack anywhere + K+Q in any suit
+  bool _meets20Qualifier(List<Card> hand, Map<Suit, int> suitCounts) {
+    final hasJack = hand.any((c) => c.rank == Rank.jack);
 
-  bool _isAlreadyHighestBidder(RoundState state, Player bot) {
-    return state.highestBid?.caller == bot.seat;
+    for (final suit in Suit.values) {
+      final count = suitCounts[suit] ?? 0;
+
+      // 4+ cards same suit
+      if (count >= 4) return true;
+
+      if (count >= 2) {
+        final hasK = hand.any((c) => c.suit == suit && c.rank == Rank.king);
+        final hasQ = hand.any((c) => c.suit == suit && c.rank == Rank.queen);
+        final hasJ = hand.any((c) => c.suit == suit && c.rank == Rank.jack);
+
+        // J+Q+K same suit
+        if (hasJ && hasQ && hasK) return true;
+
+        // Jack in this suit + 2 others (3+ total)
+        if (hasJ && count >= 3) return true;
+
+        // Jack elsewhere + K+Q in this suit
+        if (hasJack && hasK && hasQ) return true;
+      }
+    }
+    return false;
   }
+
+  /// Can bid 30.
+  /// Requires one of:
+  ///   - J + 4+ same suit (near-monopoly with Jack)
+  ///   - J+Q+K same suit + another power card (9 or A) elsewhere
+  ///   - 5+ cards same suit
+  bool _meets30Qualifier(List<Card> hand, Map<Suit, int> suitCounts) {
+    for (final suit in Suit.values) {
+      final count = suitCounts[suit] ?? 0;
+
+      // 5+ cards same suit
+      if (count >= 5) return true;
+
+      if (count >= 3) {
+        final hasJ = hand.any((c) => c.suit == suit && c.rank == Rank.jack);
+        final hasQ = hand.any((c) => c.suit == suit && c.rank == Rank.queen);
+        final hasK = hand.any((c) => c.suit == suit && c.rank == Rank.king);
+
+        // J + 4+ same suit
+        if (hasJ && count >= 4) return true;
+
+        // J+Q+K same suit + extra power card (9 or A) in another suit
+        if (hasJ && hasQ && hasK) {
+          final hasExtraPower = hand.any(
+            (c) => c.suit != suit &&
+                (c.rank == Rank.nine || c.rank == Rank.ace),
+          );
+          if (hasExtraPower) return true;
+        }
+      }
+    }
+    return false;
+  }
+
+  /// Returns the highest bid level (10/20/30) this hand structurally qualifies for.
+  int _maxBidLevel(List<Card> hand, Map<Suit, int> suitCounts) {
+    if (_meets30Qualifier(hand, suitCounts)) return 30;
+    if (_meets20Qualifier(hand, suitCounts)) return 20;
+    return 10;
+  }
+
+  // ─── Eligibility helpers ───────────────────────────────────────────────────
+
+  bool _isAlreadyHighestBidder(RoundState state, Player bot) =>
+      state.highestBid?.caller == bot.seat;
 
   bool _isTeammateBidLeading(RoundState state, Player bot) {
     if (state.highestBid == null) return false;
@@ -67,32 +163,22 @@ class CallDecisionMaker {
 
   // ─── Hand Control Confidence (HCC) ────────────────────────────────────────
 
-  /// Computes a confidence score [0.0, 1.0] representing how much control
-  /// this hand gives over the round.
-  double _computeHCC(Player bot) {
-    final hand = bot.hand;
+  double _computeHCC(List<Card> hand, Map<Suit, int> suitCounts) {
     double score = 0.0;
 
-    // 1. Power-card contribution
     for (final card in hand) {
       score += _powerContribution(card.rank);
     }
 
-    // 2. Best-suit concentration
-    final suitCounts = _suitCounts(hand);
     final maxCount = suitCounts.values.fold(0, (m, c) => c > m ? c : m);
     score += _concentrationBonus(maxCount);
 
-    // 3. Cross-suit coverage (reduces vulnerability to being void-cut)
     final suitsRepresented = suitCounts.values.where((c) => c > 0).length;
     score += _coverageBonus(suitsRepresented);
 
-    // 4. Jodi potential (force multiplier, not foundation)
     score += _jodiBonus(hand, suitCounts);
 
-    // 5. Small noise to prevent deterministic behaviour
-    score += (_rng.nextDouble() - 0.5) * 0.10; // ±0.05
-
+    score += (_rng.nextDouble() - 0.5) * 0.10; // ±0.05 noise
     return score.clamp(0.0, 1.0);
   }
 
@@ -118,7 +204,7 @@ class CallDecisionMaker {
   double _coverageBonus(int suitsRepresented) {
     if (suitsRepresented == 4) return 0.03;
     if (suitsRepresented == 3) return 0.01;
-    if (suitsRepresented == 1) return -0.02; // single-suit hand is fragile
+    if (suitsRepresented == 1) return -0.02;
     return 0.0;
   }
 
@@ -146,94 +232,85 @@ class CallDecisionMaker {
     return counts;
   }
 
-  // ─── Opening bid (no prior bid) ───────────────────────────────────────────
+  // ─── Opening bid decision ─────────────────────────────────────────────────
 
-  BotDecision _openingBidDecision(double hcc) {
+  BotDecision _openingBidDecision(double hcc, int maxLevel) {
+    // Determine the ideal bid level from HCC, then cap at maxLevel.
+    final ideal = _idealOpeningLevel(hcc);
+    final actual = ideal.clamp(0, maxLevel);
+
+    if (actual < 10) return PassBidDecision();
+    return MakeBidDecision(actual);
+  }
+
+  int _idealOpeningLevel(double hcc) {
     if (config.enableCallAndLoss) {
-      // Call & Loss: each bid is a real commitment, no free exploration.
-      if (hcc < 0.48) return PassBidDecision();
-      if (hcc < 0.60) {
-        // Borderline – bid 10 only ~35% of the time.
-        return _rng.nextDouble() < 0.35
-            ? MakeBidDecision(10)
-            : PassBidDecision();
+      // Stricter thresholds: every bid is a real commitment.
+      if (hcc < 0.52) return 0;   // Pass
+      if (hcc < 0.68) return 10;
+      if (hcc < 0.86) {
+        // Mix 10/20 in the middle band.
+        return _rng.nextDouble() < 0.45 ? 10 : 20;
       }
-      if (hcc < 0.78) return MakeBidDecision(10);
-      if (hcc < 0.90) {
-        // Mix of 10 and 20.
-        return MakeBidDecision(_rng.nextDouble() < 0.40 ? 10 : 20);
-      }
-      if (hcc < 0.97) return MakeBidDecision(20);
-      // HCC ≥ 0.97: exceptionally strong hand.
-      return MakeBidDecision(_rng.nextDouble() < 0.30 ? 30 : 20);
+      if (hcc < 0.95) return 20;
+      return _rng.nextDouble() < 0.35 ? 20 : 30;
     } else {
-      // No Call & Loss: 10 can be exploratory / defensive.
-      if (hcc < 0.30) return PassBidDecision();
-      if (hcc < 0.42) {
-        // Weak but possible – 40% chance to open 10.
-        return _rng.nextDouble() < 0.40
-            ? MakeBidDecision(10)
-            : PassBidDecision();
+      // Default rules: 10 is exploratory, but still needs the qualifier.
+      if (hcc < 0.38) return 0;   // Pass even with qualifier
+      if (hcc < 0.55) return 10;
+      if (hcc < 0.70) {
+        // Border of 10/20.
+        return _rng.nextDouble() < 0.50 ? 10 : 20;
       }
-      if (hcc < 0.65) return MakeBidDecision(10);
-      if (hcc < 0.78) {
-        // Mix of 10 and 20.
-        return MakeBidDecision(_rng.nextDouble() < 0.45 ? 10 : 20);
-      }
-      if (hcc < 0.92) return MakeBidDecision(20);
-      return MakeBidDecision(_rng.nextDouble() < 0.50 ? 20 : 30);
+      if (hcc < 0.88) return 20;
+      return _rng.nextDouble() < 0.45 ? 20 : 30;
     }
   }
 
-  // ─── Response bid (existing bid present) ──────────────────────────────────
+  // ─── Response bid decision ────────────────────────────────────────────────
 
   BotDecision _responseBidDecision(
-      double hcc, BidCall existingBid, Player bot) {
+      double hcc, int maxLevel, BidCall existingBid) {
     final currentAmount = existingBid.amount;
+    final overbidAmount = currentAmount + 10;
 
-    // Determine minimum thresholds to overbid at each level.
+    // Structural cap: can't bid a level we don't qualify for.
+    if (overbidAmount > maxLevel) return PassBidDecision();
+
     final thresholds = config.enableCallAndLoss
         ? _callAndLossThresholds()
         : _defaultThresholds();
 
-    // Find the cheapest legal overbid amount.
-    final overbidAmount = currentAmount + 10;
-
-    // Check if we have enough confidence for this overbid level.
     final required = _requiredHcc(overbidAmount, thresholds);
     if (hcc < required) return PassBidDecision();
 
-    // Decide the exact bid amount (don't over-escalate unnecessarily).
-    return MakeBidDecision(_selectOverbidAmount(hcc, currentAmount, thresholds));
+    return MakeBidDecision(
+        _selectOverbidAmount(hcc, currentAmount, maxLevel, thresholds));
   }
 
-  /// Returns the minimum HCC needed to bid at or above [targetAmount].
   double _requiredHcc(int targetAmount, Map<int, double> thresholds) {
-    // Find the closest defined threshold at or above targetAmount.
     for (final entry in thresholds.entries.toList()
       ..sort((a, b) => a.key.compareTo(b.key))) {
       if (targetAmount <= entry.key) return entry.value;
     }
-    // Very high bid – extremely high confidence needed.
     return 0.95;
   }
 
-  /// Selects the most appropriate overbid amount given the bot's confidence.
   int _selectOverbidAmount(
-      double hcc, int currentBid, Map<int, double> thresholds) {
-    // Start from the minimum overbid and go up if justified.
+      double hcc, int currentBid, int maxLevel, Map<int, double> thresholds) {
     int amount = currentBid + 10;
 
-    for (final nextAmount in [currentBid + 10, currentBid + 20]) {
-      final threshold = _requiredHcc(nextAmount, thresholds);
+    for (final next in [currentBid + 10, currentBid + 20]) {
+      if (next > maxLevel) break;
+      final threshold = _requiredHcc(next, thresholds);
       if (hcc >= threshold) {
-        amount = nextAmount;
+        amount = next;
       } else {
         break;
       }
     }
 
-    // Add small chance to bid just one level above minimum (avoid escalation).
+    // Occasionally stay at minimum overbid to avoid runaway escalation.
     if (amount > currentBid + 10 && _rng.nextDouble() < 0.35) {
       amount = currentBid + 10;
     }
@@ -241,18 +318,17 @@ class CallDecisionMaker {
     return amount;
   }
 
-  /// HCC thresholds for overbidding without Call & Loss.
-  /// Key = minimum bid amount being considered, value = min HCC required.
+  // ─── Thresholds ───────────────────────────────────────────────────────────
+
   Map<int, double> _defaultThresholds() => {
-        20: 0.50, // To bid 20 (over a 10), need HCC ≥ 0.50
-        30: 0.70, // To bid 30 (over a 20), need HCC ≥ 0.70
-        40: 0.85, // To bid 40+, need HCC ≥ 0.85
+        20: 0.55,
+        30: 0.75,
+        40: 0.90,
       };
 
-  /// HCC thresholds for overbidding with Call & Loss enabled.
   Map<int, double> _callAndLossThresholds() => {
-        20: 0.65, // Higher bar when losing gives opponents balls
-        30: 0.82,
-        40: 0.92,
+        20: 0.68,
+        30: 0.84,
+        40: 0.94,
       };
 }
