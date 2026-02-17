@@ -246,6 +246,8 @@ class PulseCardWidget extends StatelessWidget {
   final game_card.Card card;
   final bool isLegal;
   final CardSize size;
+  final double? width;
+  final double? height;
   final VoidCallback? onTap;
 
   const PulseCardWidget({
@@ -253,6 +255,8 @@ class PulseCardWidget extends StatelessWidget {
     required this.card,
     required this.isLegal,
     this.size = CardSize.medium,
+    this.width,
+    this.height,
     this.onTap,
   });
 
@@ -261,6 +265,8 @@ class PulseCardWidget extends StatelessWidget {
     final baseWidget = PlayingCardWidget(
       card: card,
       size: size,
+      width: width,
+      height: height,
       onTap: onTap,
       isSelected: false,
     );
