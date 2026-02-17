@@ -71,40 +71,43 @@ class PlayingCardWidget extends StatelessWidget {
   Widget _buildCardFront(game_card.Card card, double fontSize) {
     final isRed = card.suit.isRed;
     final color = isRed ? Colors.red : Colors.black;
+    final rankStyle = TextStyle(
+      fontSize: fontSize,
+      fontWeight: FontWeight.bold,
+      color: color,
+      height: 1.0,
+    );
 
-    return Padding(
-      padding: const EdgeInsets.all(4.0),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+    // Stack+Positioned avoids Column+Spacer overflow on small cards.
+    // ClipRect silently clips any sub-pixel overrun.
+    return ClipRect(
+      child: Stack(
+        fit: StackFit.expand,
         children: [
-          Text(
-            card.rank.symbol,
-            style: TextStyle(
-              fontSize: fontSize,
-              fontWeight: FontWeight.bold,
-              color: color,
-            ),
+          // Top-left: rank
+          Positioned(
+            top: 2,
+            left: 3,
+            child: Text(card.rank.symbol, style: rankStyle),
           ),
-          const Spacer(),
+          // Center: suit symbol
           Center(
             child: Text(
               card.suit.symbol,
-              style: TextStyle(fontSize: fontSize * 1.4, color: color),
+              style: TextStyle(
+                fontSize: (fontSize * 1.3).clamp(10.0, 32.0),
+                color: color,
+                height: 1.0,
+              ),
             ),
           ),
-          const Spacer(),
-          Align(
-            alignment: Alignment.bottomRight,
+          // Bottom-right: rank (rotated 180°)
+          Positioned(
+            bottom: 2,
+            right: 3,
             child: Transform.rotate(
               angle: 3.14159,
-              child: Text(
-                card.rank.symbol,
-                style: TextStyle(
-                  fontSize: fontSize,
-                  fontWeight: FontWeight.bold,
-                  color: color,
-                ),
-              ),
+              child: Text(card.rank.symbol, style: rankStyle),
             ),
           ),
         ],
