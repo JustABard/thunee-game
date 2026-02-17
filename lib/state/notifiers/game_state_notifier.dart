@@ -12,8 +12,9 @@ class GameStateNotifier extends StateNotifier<MatchState?> {
   final GameEngine _engine;
   final BotPolicy _botPolicy;
 
-  GameStateNotifier(this._engine, [BotPolicy? botPolicy])
-      : _botPolicy = botPolicy ?? RuleBasedBot(),
+  GameStateNotifier(GameEngine engine, [BotPolicy? botPolicy])
+      : _engine = engine,
+        _botPolicy = botPolicy ?? RuleBasedBot(config: engine.config),
         super(null);
 
   /// Starts a new match with given players

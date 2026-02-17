@@ -82,7 +82,7 @@ class MatchState extends Equatable {
       players: players ?? this.players,
       teams: teams ?? this.teams,
       completedRounds: completedRounds ?? this.completedRounds,
-      currentRound: currentRound,
+      currentRound: currentRound ?? this.currentRound,
       isComplete: isComplete ?? this.isComplete,
       winningTeam: winningTeam ?? this.winningTeam,
     );
@@ -123,7 +123,12 @@ class MatchState extends Equatable {
         ? teams.indexWhere((team) => team.balls >= matchTarget)
         : null;
 
-    return copyWith(
+    // Construct directly to explicitly set currentRound to null
+    // (copyWith cannot clear currentRound since it uses ??)
+    return MatchState(
+      config: config,
+      players: players,
+      teams: teams,
       completedRounds: updatedCompletedRounds,
       currentRound: null,
       isComplete: matchComplete,

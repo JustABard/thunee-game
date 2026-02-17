@@ -28,12 +28,14 @@ class CardSelector {
     }
 
     final trick = state.currentTrick!;
-    final trumpSuit = state.trumpSuit!;
 
-    // If leading, play strongest card (unless Thunee/Royals mode)
+    // If leading, play strongest card (trump not yet set for first card of round)
     if (trick.isEmpty) {
       return _selectLeadCard(legalCards, state, bot);
     }
+
+    // Trump is guaranteed to be set once the first card of the round has been played
+    final trumpSuit = state.trumpSuit!;
 
     // If following, decide whether to win or dump
     return _selectFollowCard(

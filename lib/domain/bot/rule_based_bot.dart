@@ -1,4 +1,5 @@
 import '../models/card.dart';
+import '../models/game_config.dart';
 import '../models/player.dart';
 import '../models/round_state.dart';
 import '../rules/card_ranker.dart';
@@ -14,14 +15,14 @@ import 'card_selector.dart';
 /// - Tries to win tricks when opponent is winning
 /// - Dumps weak cards when partner is winning
 /// - NEVER cuts partner during Thunee/Royals
-/// - Bids based on hand strength (high cards + suit distribution)
+/// - Bids using Hand Control Confidence model (HCC)
 class RuleBasedBot implements BotPolicy {
   final CardSelector _cardSelector;
   final CallDecisionMaker _callDecisionMaker;
 
-  RuleBasedBot()
+  RuleBasedBot({GameConfig config = const GameConfig()})
       : _cardSelector = CardSelector(CardRanker(), TrickResolver(CardRanker())),
-        _callDecisionMaker = CallDecisionMaker();
+        _callDecisionMaker = CallDecisionMaker(config);
 
   /// Factory constructor for custom dependencies (useful for testing)
   factory RuleBasedBot.withDependencies({
