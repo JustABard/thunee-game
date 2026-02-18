@@ -59,11 +59,32 @@ class PlayingCardWidget extends StatelessWidget {
   Widget _buildCardBack(double fontSize) {
     return Container(
       decoration: BoxDecoration(
-        color: Colors.blue.shade900,
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [Colors.blue.shade800, Colors.indigo.shade900],
+        ),
         borderRadius: BorderRadius.circular(6),
       ),
-      child: Center(
-        child: Icon(Icons.auto_awesome, color: Colors.white24, size: fontSize),
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          // Subtle diamond pattern
+          Center(
+            child: Icon(
+              Icons.diamond_outlined,
+              color: Colors.white10,
+              size: (fontSize * 2.2).clamp(12.0, 40.0),
+            ),
+          ),
+          Center(
+            child: Icon(
+              Icons.auto_awesome,
+              color: Colors.white24,
+              size: fontSize,
+            ),
+          ),
+        ],
       ),
     );
   }

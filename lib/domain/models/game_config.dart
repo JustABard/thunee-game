@@ -97,6 +97,42 @@ class GameConfig extends Equatable {
     );
   }
 
+  /// Serializes to JSON map
+  Map<String, dynamic> toJson() => {
+        'enableRoyals': enableRoyals,
+        'enableBlindThunee': enableBlindThunee,
+        'enableBlindRoyals': enableBlindRoyals,
+        'enableJodi': enableJodi,
+        'enableDouble': enableDouble,
+        'enableKunuck': enableKunuck,
+        'enableFirstThirdOnlyJodiCalls': enableFirstThirdOnlyJodiCalls,
+        'enableCallOverTeammates': enableCallOverTeammates,
+        'enableCallAndLoss': enableCallAndLoss,
+        'blindThuneeSuccessBalls': blindThuneeSuccessBalls,
+        'blindRoyalsSuccessBalls': blindRoyalsSuccessBalls,
+        'matchTarget': matchTarget,
+      };
+
+  /// Deserializes from JSON map
+  factory GameConfig.fromJson(Map<String, dynamic> json) => GameConfig(
+        enableRoyals: json['enableRoyals'] as bool? ?? true,
+        enableBlindThunee: json['enableBlindThunee'] as bool? ?? true,
+        enableBlindRoyals: json['enableBlindRoyals'] as bool? ?? true,
+        enableJodi: json['enableJodi'] as bool? ?? true,
+        enableDouble: json['enableDouble'] as bool? ?? true,
+        enableKunuck: json['enableKunuck'] as bool? ?? true,
+        enableFirstThirdOnlyJodiCalls:
+            json['enableFirstThirdOnlyJodiCalls'] as bool? ?? false,
+        enableCallOverTeammates:
+            json['enableCallOverTeammates'] as bool? ?? false,
+        enableCallAndLoss: json['enableCallAndLoss'] as bool? ?? false,
+        blindThuneeSuccessBalls:
+            json['blindThuneeSuccessBalls'] as int? ?? 8,
+        blindRoyalsSuccessBalls:
+            json['blindRoyalsSuccessBalls'] as int? ?? 8,
+        matchTarget: json['matchTarget'] as int? ?? 12,
+      );
+
   @override
   List<Object?> get props => [
         enableRoyals,

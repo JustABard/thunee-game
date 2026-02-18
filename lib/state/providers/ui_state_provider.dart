@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../domain/models/player.dart';
 import 'game_state_provider.dart';
+import 'local_seat_provider.dart';
 
 /// Provider for handover mode state (2-player pass-and-play)
 class HandoverNotifier extends StateNotifier<bool> {
@@ -59,9 +60,10 @@ final shouldShowCardsProvider = Provider.family<bool, Seat>((ref, seat) {
   // Count human players
   final humanPlayers = matchState.players.where((p) => !p.isBot).toList();
 
-  // In 1-player mode, always show human's cards (seat south)
+  // In 1-player mode, always show human's cards (local seat)
   if (humanPlayers.length == 1) {
-    return seat == Seat.south;
+    final localSeat = ref.watch(localSeatProvider);
+    return seat == localSeat;
   }
 
   // In 2-player mode

@@ -1,9 +1,6 @@
 import '../models/call_type.dart';
 import '../models/game_config.dart';
-import '../models/player.dart';
 import '../models/round_state.dart';
-import '../models/team.dart';
-import '../models/trick.dart';
 import '../../utils/constants.dart';
 
 /// Detailed breakdown of scoring for a round
@@ -54,64 +51,76 @@ class ScoringEngine {
   }
 
   /// Scores a normal round (with bidding, no Thunee/Royals)
+  ///
+  /// Counting team = OPPONENTS of trump-making team.
+  /// The counting team must reach ≥105 points (after bid compensation) to win.
+  /// Bid amount is added to the counting team as compensation.
   ScoringBreakdown _scoreNormalRound(RoundState state) {
-    // Calculate points for each team
-    final team0Points = _calculateTeamPoints(state, 0);
-    final team1Points = _calculateTeamPoints(state, 1);
+    // Calculate trick points for each team (card values + last trick bonus)
+    final team0TrickPoints = _calculateTeamPoints(state, 0);
+    final team1TrickPoints = _calculateTeamPoints(state, 1);
 
-    // Add Jodi points
+    // Add Jodi points (to calling team only)
     final team0JodiPoints = _calculateJodiPoints(state, 0);
     final team1JodiPoints = _calculateJodiPoints(state, 1);
 
-    final team0Total = team0Points + team0JodiPoints;
-    final team1Total = team1Points + team1JodiPoints;
+    // Bid compensation: added to the COUNTING team (opponents of trump-maker)
+    final trumpMakingTeam = state.trumpMakingTeam;
+    final countingTeam = trumpMakingTeam == 0 ? 1 : 0; // OPPONENTS count
+    final bidAmount = state.highestBid?.amount ?? 0;
+
+    // Calculate totals per team
+    int team0Total = team0TrickPoints + team0JodiPoints;
+    int team1Total = team1TrickPoints + team1JodiPoints;
+
+    // Add bid compensation to the counting team
+    if (countingTeam == 0) {
+      team0Total += bidAmount;
+    } else {
+      team1Total += bidAmount;
+    }
 
     final details = <String>[];
-    details.add('Team 1: $team0Points card points${team0JodiPoints > 0 ? ' + $team0JodiPoints Jodi' : ''} = $team0Total');
-    details.add('Team 2: $team1Points card points${team1JodiPoints > 0 ? ' + $team1JodiPoints Jodi' : ''} = $team1Total');
-
-    // Determine counting team
-    final countingTeam = state.trumpMakingTeam;
-    final nonCountingTeam = countingTeam == 0 ? 1 : 0;
+    details.add('Team 1: $team0TrickPoints tricks${team0JodiPoints > 0 ? ' + $team0JodiPoints Jodi' : ''}${countingTeam == 0 && bidAmount > 0 ? ' + $bidAmount bid' : ''} = $team0Total');
+    details.add('Team 2: $team1TrickPoints tricks${team1JodiPoints > 0 ? ' + $team1JodiPoints Jodi' : ''}${countingTeam == 1 && bidAmount > 0 ? ' + $bidAmount bid' : ''} = $team1Total');
 
     final countingTeamPoints = countingTeam == 0 ? team0Total : team1Total;
-    final nonCountingTeamPoints = countingTeam == 0 ? team1Total : team0Total;
 
-    details.add('Counting team: Team ${countingTeam + 1} (made trump)');
-    details.add('Counting team points: $countingTeamPoints');
+    details.add('Trump maker: Team ${trumpMakingTeam + 1}');
+    details.add('Counting team: Team ${countingTeam + 1} (opponents)');
+    details.add('Counting team total: $countingTeamPoints${bidAmount > 0 ? ' (incl. +$bidAmount bid)' : ''}');
 
-    // Check if counting team reached 105
     int team0Balls = 0;
     int team1Balls = 0;
 
     if (countingTeamPoints >= WINNING_THRESHOLD) {
-      // Counting team wins — always +1 ball
+      // Counting team reached 105+ → counting team wins the round
       if (countingTeam == 0) {
         team0Balls = 1;
       } else {
         team1Balls = 1;
       }
-      details.add('Counting team reached $WINNING_THRESHOLD+ → +1 ball');
+      details.add('Counting team reached $WINNING_THRESHOLD+ → counting team +1 ball');
     } else {
-      // Counting team failed to reach threshold
-      details.add('Counting team failed to reach $WINNING_THRESHOLD');
+      // Counting team failed → trump-making team wins
+      details.add('Counting team failed to reach $WINNING_THRESHOLD → trump maker wins');
 
       if (config.enableCallAndLoss) {
-        // Call & Loss rule: opponents get +2 balls
-        if (nonCountingTeam == 0) {
+        // Call & Loss: trump-making team gets +2 balls (extra penalty)
+        if (trumpMakingTeam == 0) {
           team0Balls = CALL_AND_LOSS_BALLS;
         } else {
           team1Balls = CALL_AND_LOSS_BALLS;
         }
-        details.add('Call & Loss: opponents get +$CALL_AND_LOSS_BALLS balls');
+        details.add('Call & Loss: trump maker gets +$CALL_AND_LOSS_BALLS balls');
       } else {
-        // Standard: opponents get +1 ball
-        if (nonCountingTeam == 0) {
+        // Standard: trump-making team gets +1 ball
+        if (trumpMakingTeam == 0) {
           team0Balls = 1;
         } else {
           team1Balls = 1;
         }
-        details.add('Opponents get +1 ball');
+        details.add('Trump maker gets +1 ball');
       }
     }
 
@@ -249,14 +258,6 @@ class ScoringEngine {
     }
 
     return points;
-  }
-
-  /// Converts points to balls (1 ball per 10 points above 105)
-  int _calculateBallsFromPoints(int points) {
-    if (points < WINNING_THRESHOLD) return 0;
-
-    final excessPoints = points - WINNING_THRESHOLD;
-    return 1 + (excessPoints ~/ 10); // 1 base ball + 1 per 10 excess points
   }
 
   /// Gets success balls for Thunee-type calls

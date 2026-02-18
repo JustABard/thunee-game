@@ -96,6 +96,37 @@ class Trick extends Equatable {
     );
   }
 
+  /// Serializes to JSON map
+  Map<String, dynamic> toJson() => {
+        'cardsPlayed': cardsPlayed.map(
+            (seat, card) => MapEntry(seat.name, card.toJson())),
+        'leadSeat': leadSeat.name,
+        'leadSuit': leadSuit?.name,
+        'winningSeat': winningSeat?.name,
+        'points': points,
+      };
+
+  /// Deserializes from JSON map
+  factory Trick.fromJson(Map<String, dynamic> json) {
+    final cardsMap = (json['cardsPlayed'] as Map<String, dynamic>).map(
+      (key, value) => MapEntry(
+        Seat.values.byName(key),
+        Card.fromJson(value as String),
+      ),
+    );
+    return Trick(
+      cardsPlayed: cardsMap,
+      leadSeat: Seat.values.byName(json['leadSeat'] as String),
+      leadSuit: json['leadSuit'] != null
+          ? Suit.values.byName(json['leadSuit'] as String)
+          : null,
+      winningSeat: json['winningSeat'] != null
+          ? Seat.values.byName(json['winningSeat'] as String)
+          : null,
+      points: json['points'] as int? ?? 0,
+    );
+  }
+
   @override
   List<Object?> get props => [cardsPlayed, leadSeat, leadSuit, winningSeat, points];
 

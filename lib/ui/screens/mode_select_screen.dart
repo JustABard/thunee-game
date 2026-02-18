@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../domain/models/player.dart';
 import '../../state/providers/game_state_provider.dart';
+import '../../state/providers/lobby_provider.dart';
 import 'game_table_screen.dart';
+import 'online_lobby_screen.dart';
 
 /// Screen for selecting game mode — landscape-optimised side-by-side layout.
 class ModeSelectScreen extends ConsumerWidget {
@@ -56,6 +58,21 @@ class ModeSelectScreen extends ConsumerWidget {
                         onTap: () => _startGame(context, ref, humanCount: 2),
                       ),
                     ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: _ModeCard(
+                        title: 'Online Play',
+                        description: 'Up to 4 humans online',
+                        icon: Icons.wifi,
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                                builder: (_) => const OnlineLobbyScreen()),
+                          );
+                        },
+                      ),
+                    ),
                   ],
                 ),
               ),
@@ -68,6 +85,8 @@ class ModeSelectScreen extends ConsumerWidget {
 
   void _startGame(BuildContext context, WidgetRef ref,
       {required int humanCount}) {
+    ref.read(gameModeProvider.notifier).state =
+        humanCount == 1 ? GameMode.solo : GameMode.passAndPlay;
     final players = [
       Player(id: '1', name: 'You', seat: Seat.south, hand: [], isBot: false),
       Player(

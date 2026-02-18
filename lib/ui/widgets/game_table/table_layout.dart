@@ -3,7 +3,9 @@ import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../domain/models/player.dart';
 import '../../../domain/models/round_state.dart';
+import '../../../state/providers/local_seat_provider.dart';
 import '../../../state/providers/ui_state_provider.dart';
+import '../../utils/seat_rotation.dart';
 import '../cards/card_hand.dart';
 import '../cards/playing_card_widget.dart';
 import 'trump_indicator.dart';
@@ -25,15 +27,23 @@ class TableLayout extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final southPlayer = roundState.playerAt(Seat.south);
-    final westPlayer  = roundState.playerAt(Seat.west);
-    final northPlayer = roundState.playerAt(Seat.north);
-    final eastPlayer  = roundState.playerAt(Seat.east);
+    final localSeat = ref.watch(localSeatProvider);
+    final rotation = SeatRotation(localSeat);
 
-    final showSouth = ref.watch(shouldShowCardsProvider(Seat.south));
-    final showWest  = ref.watch(shouldShowCardsProvider(Seat.west));
-    final showNorth = ref.watch(shouldShowCardsProvider(Seat.north));
-    final showEast  = ref.watch(shouldShowCardsProvider(Seat.east));
+    final bottomSeat = rotation.absoluteSeatAt(VisualPosition.bottom);
+    final rightSeat  = rotation.absoluteSeatAt(VisualPosition.right);
+    final topSeat    = rotation.absoluteSeatAt(VisualPosition.top);
+    final leftSeat   = rotation.absoluteSeatAt(VisualPosition.left);
+
+    final southPlayer = roundState.playerAt(bottomSeat);
+    final westPlayer  = roundState.playerAt(leftSeat);
+    final northPlayer = roundState.playerAt(topSeat);
+    final eastPlayer  = roundState.playerAt(rightSeat);
+
+    final showSouth = ref.watch(shouldShowCardsProvider(bottomSeat));
+    final showWest  = ref.watch(shouldShowCardsProvider(leftSeat));
+    final showNorth = ref.watch(shouldShowCardsProvider(topSeat));
+    final showEast  = ref.watch(shouldShowCardsProvider(rightSeat));
 
     // Who's acting and who called trump — used by player widgets for highlights
     final currentTurn = roundState.currentTurn;
@@ -74,7 +84,13 @@ class TableLayout extends ConsumerWidget {
         final trickCardH = (centerH * 0.32).clamp(38.0, 68.0);
 
         return Container(
-          color: Colors.green.shade800,
+          decoration: const BoxDecoration(
+            gradient: RadialGradient(
+              center: Alignment.center,
+              radius: 1.4,
+              colors: [Color(0xFF1B6B3A), Color(0xFF0D3D1F)],
+            ),
+          ),
           child: Stack(
             children: [
               Column(
@@ -91,7 +107,6 @@ class TableLayout extends ConsumerWidget {
                         isTop: true,
                         isCurrentTurn: northPlayer.seat == currentTurn,
                         isTrumpCaller: northPlayer.seat == trumpCaller,
-                        animDelay: const Duration(milliseconds: 200),
                       ),
                     ),
                   ),
@@ -113,7 +128,7 @@ class TableLayout extends ConsumerWidget {
                               maxWidth: sideW,
                               isCurrentTurn: westPlayer.seat == currentTurn,
                               isTrumpCaller: westPlayer.seat == trumpCaller,
-                              animDelay: const Duration(milliseconds: 100),
+                              isLeft: true,
                             ),
                           ),
                         ),
@@ -127,6 +142,7 @@ class TableLayout extends ConsumerWidget {
                               roundState: roundState,
                               trickCardH: trickCardH,
                               areaSize: (centerH * 0.78).clamp(80.0, 200.0),
+                              rotation: rotation,
                             ),
                           ),
                         ),
@@ -143,7 +159,7 @@ class TableLayout extends ConsumerWidget {
                               maxWidth: sideW,
                               isCurrentTurn: eastPlayer.seat == currentTurn,
                               isTrumpCaller: eastPlayer.seat == trumpCaller,
-                              animDelay: const Duration(milliseconds: 300),
+                              isLeft: false,
                             ),
                           ),
                         ),
@@ -163,17 +179,16 @@ class TableLayout extends ConsumerWidget {
                         isTop: false,
                         isCurrentTurn: southPlayer.seat == currentTurn,
                         isTrumpCaller: southPlayer.seat == trumpCaller,
-                        animDelay: Duration.zero,
                       ),
                     ),
                   ),
                 ],
               ),
 
-              // Trump indicator — only shown after the first card has been played
+              // Trump indicator — only revealed after the first card is played
               if (roundState.trumpSuit != null &&
-                  (roundState.completedTricks.isNotEmpty ||
-                   (roundState.currentTrick != null && !roundState.currentTrick!.isEmpty)))
+                  (roundState.currentTrick != null && !roundState.currentTrick!.isEmpty ||
+                   roundState.completedTricks.isNotEmpty))
                 Positioned(
                   top: northH + 4,
                   left: sideW,
@@ -203,7 +218,6 @@ class _HorizontalPlayer extends StatelessWidget {
   final bool isTop;
   final bool isCurrentTurn;
   final bool isTrumpCaller;
-  final Duration animDelay;
 
   const _HorizontalPlayer({
     required this.player,
@@ -212,7 +226,6 @@ class _HorizontalPlayer extends StatelessWidget {
     required this.isTop,
     required this.isCurrentTurn,
     required this.isTrumpCaller,
-    required this.animDelay,
   });
 
   @override
@@ -226,7 +239,12 @@ class _HorizontalPlayer extends StatelessWidget {
 
     final cardRow = showCards
         ? CardHand(cards: player.hand, isVisible: true, cardHeight: cardHeight)
-        : _BackRow(count: player.hand.length, cardH: cardHeight, cardW: cardHeight * 0.67);
+        : _BackRow(
+            count: player.hand.length,
+            cardH: cardHeight,
+            cardW: cardHeight * 0.67,
+            slideFromTop: isTop,
+          );
 
     final children = isTop
         ? [nameLabel, const SizedBox(height: 3), cardRow]
@@ -236,16 +254,7 @@ class _HorizontalPlayer extends StatelessWidget {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: children,
-      )
-          .animate()
-          .fadeIn(duration: const Duration(milliseconds: 400), delay: animDelay)
-          .slideY(
-            begin: isTop ? -0.2 : 0.2,
-            end: 0,
-            duration: const Duration(milliseconds: 400),
-            delay: animDelay,
-            curve: Curves.easeOut,
-          ),
+      ),
     );
   }
 }
@@ -259,7 +268,7 @@ class _SidePlayer extends StatelessWidget {
   final double maxWidth;
   final bool isCurrentTurn;
   final bool isTrumpCaller;
-  final Duration animDelay;
+  final bool isLeft;
 
   const _SidePlayer({
     required this.player,
@@ -268,7 +277,7 @@ class _SidePlayer extends StatelessWidget {
     required this.maxWidth,
     required this.isCurrentTurn,
     required this.isTrumpCaller,
-    required this.animDelay,
+    required this.isLeft,
   });
 
   @override
@@ -311,22 +320,34 @@ class _SidePlayer extends StatelessWidget {
                     card: card,
                     width: cardW,
                     height: cardH,
-                  ),
+                  )
+                      .animate(
+                        key: ValueKey('side-${player.seat.name}-$i-${player.hand.length}'),
+                      )
+                      .fadeIn(
+                        duration: const Duration(milliseconds: 350),
+                        delay: Duration(milliseconds: 80 * i),
+                      )
+                      .slideX(
+                        begin: isLeft ? -2.5 : 2.5,
+                        end: 0,
+                        duration: const Duration(milliseconds: 500),
+                        delay: Duration(milliseconds: 80 * i),
+                        curve: Curves.easeOutCubic,
+                      )
+                      .scale(
+                        begin: const Offset(0.5, 0.5),
+                        end: const Offset(1.0, 1.0),
+                        duration: const Duration(milliseconds: 400),
+                        delay: Duration(milliseconds: 80 * i),
+                        curve: Curves.easeOutCubic,
+                      ),
                 );
               }),
             ),
           ),
         ],
-      )
-          .animate()
-          .fadeIn(duration: const Duration(milliseconds: 400), delay: animDelay)
-          .slideX(
-            begin: -0.2,
-            end: 0,
-            duration: const Duration(milliseconds: 400),
-            delay: animDelay,
-            curve: Curves.easeOut,
-          ),
+      ),
     );
   }
 }
@@ -351,7 +372,7 @@ class _PlayerNameBadge extends StatelessWidget {
     // Team colour used for the trump badge
     final teamColor = teamNumber == 0 ? Colors.blue.shade400 : Colors.red.shade400;
 
-    return Row(
+    Widget badge = Row(
       mainAxisSize: MainAxisSize.min,
       children: [
         // ── Active-turn pill ──────────────────────────────────────────
@@ -363,6 +384,15 @@ class _PlayerNameBadge extends StatelessWidget {
             borderRadius: BorderRadius.circular(6),
             border: isCurrentTurn
                 ? Border.all(color: Colors.yellow.shade300, width: 1)
+                : null,
+            boxShadow: isCurrentTurn
+                ? [
+                    BoxShadow(
+                      color: Colors.yellow.withValues(alpha: 0.5),
+                      blurRadius: 10,
+                      spreadRadius: 2,
+                    ),
+                  ]
                 : null,
           ),
           child: Text(
@@ -397,17 +427,35 @@ class _PlayerNameBadge extends StatelessWidget {
         ],
       ],
     );
+
+    // Pulse glow on active turn player
+    if (isCurrentTurn) {
+      badge = badge
+          .animate(onPlay: (c) => c.repeat(reverse: true))
+          .shimmer(
+            duration: const Duration(milliseconds: 1200),
+            color: Colors.yellow.withValues(alpha: 0.25),
+          );
+    }
+
+    return badge;
   }
 }
 
-// ── A row of face-down card backs ──────────────────────────────────────────
+// ── A row of face-down card backs (with dealing animation) ──────────────────
 
 class _BackRow extends StatelessWidget {
   final int count;
   final double cardH;
   final double cardW;
+  final bool slideFromTop;
 
-  const _BackRow({required this.count, required this.cardH, required this.cardW});
+  const _BackRow({
+    required this.count,
+    required this.cardH,
+    required this.cardW,
+    this.slideFromTop = true,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -416,7 +464,29 @@ class _BackRow extends StatelessWidget {
       children: List.generate(count, (i) => Padding(
         padding: EdgeInsets.only(left: i > 0 ? 3 : 0),
         child: PlayingCardWidget(card: null, width: cardW, height: cardH),
-      )),
+      )
+          .animate(
+            key: ValueKey('back-$i-$count'),
+          )
+          .fadeIn(
+            duration: const Duration(milliseconds: 300),
+            delay: Duration(milliseconds: 90 * i),
+          )
+          .slideY(
+            begin: slideFromTop ? -1.8 : 1.8,
+            end: 0,
+            duration: const Duration(milliseconds: 480),
+            delay: Duration(milliseconds: 90 * i),
+            curve: Curves.easeOutCubic,
+          )
+          .scale(
+            begin: const Offset(0.5, 0.5),
+            end: const Offset(1.0, 1.0),
+            duration: const Duration(milliseconds: 400),
+            delay: Duration(milliseconds: 90 * i),
+            curve: Curves.easeOutCubic,
+          ),
+      ),
     );
   }
 }
@@ -427,11 +497,13 @@ class _TrickArea extends StatelessWidget {
   final RoundState roundState;
   final double trickCardH;
   final double areaSize;
+  final SeatRotation rotation;
 
   const _TrickArea({
     required this.roundState,
     required this.trickCardH,
     required this.areaSize,
+    required this.rotation,
   });
 
   @override
@@ -444,12 +516,18 @@ class _TrickArea extends StatelessWidget {
         width: areaSize,
         height: areaSize,
         decoration: BoxDecoration(
-          color: Colors.green.shade700,
+          gradient: const RadialGradient(
+            colors: [Color(0xFF2E7D51), Color(0xFF1B5E35)],
+          ),
           shape: BoxShape.circle,
-          border: Border.all(color: Colors.white24, width: 2),
+          border: Border.all(color: Colors.white30, width: 1.5),
+          boxShadow: const [
+            BoxShadow(color: Colors.black38, blurRadius: 10, spreadRadius: 2),
+            BoxShadow(color: Color(0x1A4CAF50), blurRadius: 20, spreadRadius: 4),
+          ],
         ),
         child: const Center(
-          child: Text('Trick Area', style: TextStyle(color: Colors.white54, fontSize: 11)),
+          child: Icon(Icons.casino_outlined, color: Colors.white12, size: 28),
         ),
       );
     }
@@ -474,15 +552,29 @@ class _TrickArea extends StatelessWidget {
             height: trickCardH,
           );
 
-          // Only animate the newly-placed card so earlier cards don't re-fade
+          // Only animate the newly-placed card with a directional slide from
+          // the seat that played it — gives the feeling of the card flying in.
           if (isNewest) {
+            final slideDir = _slideDirection(entry.key);
             cardWidget = cardWidget
                 .animate()
-                .fadeIn(duration: const Duration(milliseconds: 200))
+                .fadeIn(duration: const Duration(milliseconds: 120))
+                .slideX(
+                  begin: slideDir.dx,
+                  end: 0,
+                  duration: const Duration(milliseconds: 350),
+                  curve: Curves.easeOutCubic,
+                )
+                .slideY(
+                  begin: slideDir.dy,
+                  end: 0,
+                  duration: const Duration(milliseconds: 350),
+                  curve: Curves.easeOutCubic,
+                )
                 .scale(
-                  begin: const Offset(0.8, 0.8),
+                  begin: const Offset(0.5, 0.5),
                   end: const Offset(1.0, 1.0),
-                  duration: const Duration(milliseconds: 250),
+                  duration: const Duration(milliseconds: 300),
                   curve: Curves.easeOutBack,
                 );
           }
@@ -498,15 +590,27 @@ class _TrickArea extends StatelessWidget {
   }
 
   /// Returns the top-left position for each seat's card in the trick area.
+  /// Uses VisualPosition so the layout is always relative to the local player.
   Offset _cardOffset(Seat seat, double area, double cw, double ch) {
     final cx = area / 2 - cw / 2;
     final cy = area / 2 - ch / 2;
     const gap = 0.28; // fraction of half-area to offset each card
-    switch (seat) {
-      case Seat.south: return Offset(cx, cy + area * gap);
-      case Seat.north: return Offset(cx, cy - area * gap);
-      case Seat.west:  return Offset(cx - area * gap, cy);
-      case Seat.east:  return Offset(cx + area * gap, cy);
+    switch (rotation.visualPositionOf(seat)) {
+      case VisualPosition.bottom: return Offset(cx, cy + area * gap);
+      case VisualPosition.top:    return Offset(cx, cy - area * gap);
+      case VisualPosition.left:   return Offset(cx - area * gap, cy);
+      case VisualPosition.right:  return Offset(cx + area * gap, cy);
+    }
+  }
+
+  /// Returns the relative slide offset for the card animation.
+  /// Cards fly from the direction of the seat that played them.
+  Offset _slideDirection(Seat seat) {
+    switch (rotation.visualPositionOf(seat)) {
+      case VisualPosition.bottom: return const Offset(0, 2.0);   // from below
+      case VisualPosition.top:    return const Offset(0, -2.0);  // from above
+      case VisualPosition.left:   return const Offset(-2.0, 0);  // from left
+      case VisualPosition.right:  return const Offset(2.0, 0);   // from right
     }
   }
 }

@@ -8,7 +8,6 @@ import '../../domain/models/round_state.dart';
 import '../../state/providers/game_state_provider.dart';
 import '../../state/providers/ui_state_provider.dart';
 import '../widgets/game_table/table_layout.dart';
-import '../widgets/game_table/score_board.dart';
 import '../widgets/calls/bidding_panel.dart';
 import '../widgets/common/handover_screen.dart';
 import '../widgets/common/bot_thinking_indicator.dart';
@@ -186,7 +185,7 @@ class GameTableScreen extends ConsumerWidget {
 }
 
 /// Panel for calling Thunee or Royals before the first trick.
-/// Auto-skips after 10 seconds so bots aren't blocked forever.
+/// 15-second countdown with progress bar. Skip ends immediately.
 class _ThuneeCallPanel extends ConsumerStatefulWidget {
   const _ThuneeCallPanel();
 
@@ -194,16 +193,30 @@ class _ThuneeCallPanel extends ConsumerStatefulWidget {
   ConsumerState<_ThuneeCallPanel> createState() => _ThuneeCallPanelState();
 }
 
-class _ThuneeCallPanelState extends ConsumerState<_ThuneeCallPanel> {
+class _ThuneeCallPanelState extends ConsumerState<_ThuneeCallPanel>
+    with SingleTickerProviderStateMixin {
+  static const _duration = Duration(seconds: 15);
+  late final AnimationController _timerController;
+
   @override
   void initState() {
     super.initState();
-    // Auto-skip after 10 seconds so bots aren't blocked
-    Future.delayed(const Duration(seconds: 10), () {
-      if (mounted) {
+    _timerController = AnimationController(
+      vsync: this,
+      duration: _duration,
+    )..forward();
+
+    _timerController.addStatusListener((status) {
+      if (status == AnimationStatus.completed && mounted) {
         _dismiss();
       }
     });
+  }
+
+  @override
+  void dispose() {
+    _timerController.dispose();
+    super.dispose();
   }
 
   void _dismiss() {
@@ -213,49 +226,105 @@ class _ThuneeCallPanelState extends ConsumerState<_ThuneeCallPanel> {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-      decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surface,
-        boxShadow: const [BoxShadow(color: Colors.black26, blurRadius: 8)],
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          const Text('Call:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
-          const SizedBox(width: 12),
-          ElevatedButton(
-            onPressed: () {
-              ref.read(matchStateProvider.notifier).callThunee();
-              _dismiss();
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.purple,
-              foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        // Progress bar
+        AnimatedBuilder(
+          animation: _timerController,
+          builder: (context, _) {
+            return LinearProgressIndicator(
+              value: 1.0 - _timerController.value,
+              backgroundColor: Colors.purple.shade900,
+              valueColor: AlwaysStoppedAnimation<Color>(
+                Color.lerp(Colors.purple.shade300, Colors.red.shade400,
+                    _timerController.value)!,
+              ),
+              minHeight: 3,
+            );
+          },
+        ),
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              colors: [Colors.purple.shade900, Colors.indigo.shade900],
             ),
-            child: const Text('Thunee', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
+            boxShadow: const [
+              BoxShadow(
+                  color: Colors.black45,
+                  blurRadius: 10,
+                  offset: Offset(0, -2))
+            ],
           ),
-          const SizedBox(width: 8),
-          ElevatedButton(
-            onPressed: () {
-              ref.read(matchStateProvider.notifier).callRoyals();
-              _dismiss();
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.indigo,
-              foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-            ),
-            child: const Text('Royals', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Text(
+                'Special call?',
+                style: TextStyle(
+                  color: Colors.white70,
+                  fontWeight: FontWeight.w600,
+                  fontSize: 12,
+                  letterSpacing: 0.3,
+                ),
+              ),
+              const SizedBox(width: 14),
+              _callButton(
+                label: 'THUNEE',
+                icon: Icons.flash_on,
+                color: Colors.purple.shade400,
+                onTap: () {
+                  ref.read(matchStateProvider.notifier).callThunee();
+                  _dismiss();
+                },
+              ),
+              const SizedBox(width: 8),
+              _callButton(
+                label: 'ROYALS',
+                icon: Icons.workspace_premium,
+                color: Colors.indigo.shade400,
+                onTap: () {
+                  ref.read(matchStateProvider.notifier).callRoyals();
+                  _dismiss();
+                },
+              ),
+              const SizedBox(width: 8),
+              TextButton(
+                onPressed: _dismiss,
+                style:
+                    TextButton.styleFrom(foregroundColor: Colors.white38),
+                child: const Text('Skip', style: TextStyle(fontSize: 11)),
+              ),
+            ],
           ),
-          const SizedBox(width: 8),
-          TextButton(
-            onPressed: _dismiss,
-            child: const Text('Skip', style: TextStyle(fontSize: 12)),
-          ),
-        ],
+        ),
+      ],
+    );
+  }
+
+  Widget _callButton({
+    required String label,
+    required IconData icon,
+    required Color color,
+    required VoidCallback onTap,
+  }) {
+    return ElevatedButton.icon(
+      onPressed: onTap,
+      icon: Icon(icon, size: 14),
+      label: Text(label,
+          style: const TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.bold,
+              letterSpacing: 0.5)),
+      style: ElevatedButton.styleFrom(
+        backgroundColor: color,
+        foregroundColor: Colors.white,
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+        shape:
+            RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        elevation: 4,
       ),
     );
   }
@@ -271,23 +340,49 @@ class _TrumpChoiceBanner extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 7),
-      color: Colors.green.shade800,
-      child: Center(
-        child: Text(
-          isBotChoosing ? 'Opponent is choosing trump...' : 'Tap any card to set trump suit',
-          style: const TextStyle(
-            color: Colors.white,
-            fontSize: 13,
-            fontWeight: FontWeight.bold,
-          ),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [Colors.green.shade800, Colors.teal.shade800],
         ),
+        boxShadow: const [BoxShadow(color: Colors.black38, blurRadius: 8, offset: Offset(0, -2))],
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(
+            isBotChoosing ? Icons.hourglass_empty : Icons.touch_app,
+            color: Colors.white70,
+            size: 16,
+          ),
+          const SizedBox(width: 8),
+          Text(
+            isBotChoosing
+                ? 'Opponent is choosing trump…'
+                : 'Tap any card in your hand to set trump',
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+              letterSpacing: 0.2,
+            ),
+          ),
+        ],
       ),
     );
   }
 }
 
-/// Shows each team's trick points during the current round (top-left overlay).
+/// Shows each team's trick points + Jodi calls during the current round.
+///
+/// Jodi rows are always rendered (static section) — empty when none called.
+/// Layout:
+///   [Active Thunee/Royals banner]
+///   ● Team 1   X pts  (Y tricks)
+///     Jodi: badge badge …  or  "—"
+///   ─────────────────────────────
+///   ● Team 2   X pts  (Y tricks)
+///     Jodi: badge badge …  or  "—"
 class _TrickPointsTracker extends StatelessWidget {
   final RoundState roundState;
 
@@ -295,13 +390,11 @@ class _TrickPointsTracker extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final t0 = roundState.teams[0]; // South+North
-    final t1 = roundState.teams[1]; // West+East
+    final t0 = roundState.teams[0]; // South + North
+    final t1 = roundState.teams[1]; // West + East
 
-    // Active Thunee/Royals call
     final activeCall = roundState.activeThuneeCall;
 
-    // Jodi calls grouped by team
     final jodiCalls = roundState.specialCalls
         .where((c) => c.category == CallCategory.jodi)
         .cast<JodiCall>()
@@ -310,95 +403,125 @@ class _TrickPointsTracker extends StatelessWidget {
     final t1Jodis = jodiCalls.where((j) => j.caller.teamNumber == 1).toList();
 
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
       decoration: BoxDecoration(
-        color: Colors.black.withValues(alpha: 0.7),
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: Colors.white10, width: 0.5),
+        color: Colors.black.withValues(alpha: 0.75),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: Colors.white12, width: 0.8),
+        boxShadow: const [BoxShadow(color: Colors.black45, blurRadius: 8)],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
         children: [
           // Active Thunee/Royals banner
-          if (activeCall != null)
+          if (activeCall != null) ...[
             Container(
-              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-              margin: const EdgeInsets.only(bottom: 4),
+              padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+              margin: const EdgeInsets.only(bottom: 5),
               decoration: BoxDecoration(
-                color: Colors.amber.shade800.withValues(alpha: 0.9),
-                borderRadius: BorderRadius.circular(4),
+                color: Colors.amber.shade800,
+                borderRadius: BorderRadius.circular(5),
               ),
               child: Text(
-                '${activeCall.category.name.toUpperCase()} by ${activeCall.caller.name}',
+                '${activeCall.category.name.toUpperCase()} \u2605 ${activeCall.caller.name}',
                 style: const TextStyle(
                   color: Colors.white,
                   fontSize: 9,
                   fontWeight: FontWeight.bold,
+                  letterSpacing: 0.3,
                 ),
               ),
             ),
-          // Team 1 (S+N)
-          _teamRow('Team 1', t0.pointsCollected, t0.tricksWon, Colors.blue.shade300, t0Jodis),
-          const SizedBox(height: 4),
-          // Team 2 (W+E)
-          _teamRow('Team 2', t1.pointsCollected, t1.tricksWon, Colors.red.shade300, t1Jodis),
+          ],
+
+          // ── Team 1 ────────────────────────────────────────────────
+          _teamHeader('T1', t0.pointsCollected, t0.tricksWon, Colors.blue.shade300),
+          _jodiRow(t0Jodis),
+
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 4),
+            child: Divider(height: 1, thickness: 0.6, color: Colors.white12),
+          ),
+
+          // ── Team 2 ────────────────────────────────────────────────
+          _teamHeader('T2', t1.pointsCollected, t1.tricksWon, Colors.red.shade300),
+          _jodiRow(t1Jodis),
         ],
       ),
     );
   }
 
-  Widget _teamRow(String label, int points, int tricks, Color color, List<JodiCall> jodis) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+  Widget _teamHeader(String label, int points, int tricks, Color color) {
+    return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              width: 8,
-              height: 8,
-              decoration: BoxDecoration(color: color, shape: BoxShape.circle),
-            ),
-            const SizedBox(width: 4),
-            Text(
-              '$label',
-              style: TextStyle(color: color, fontSize: 10, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(width: 6),
-            Text(
-              '$points pts',
-              style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.w600),
-            ),
-            const SizedBox(width: 4),
-            Text(
-              '($tricks tricks)',
-              style: const TextStyle(color: Colors.white54, fontSize: 9),
-            ),
-          ],
+        Container(
+          width: 7,
+          height: 7,
+          decoration: BoxDecoration(color: color, shape: BoxShape.circle),
         ),
-        // Jodi calls for this team
-        for (final jodi in jodis)
-          Container(
-            margin: const EdgeInsets.only(left: 12, top: 2),
-            padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
-            decoration: BoxDecoration(
-              color: jodi.isTrump
-                  ? Colors.amber.shade800.withValues(alpha: 0.7)
-                  : Colors.teal.shade800.withValues(alpha: 0.7),
-              borderRadius: BorderRadius.circular(3),
-            ),
-            child: Text(
-              'Jodi ${jodi.cards.map((c) => c.shortName).join("+")}${jodi.isTrump ? " \u2666" : ""}  +${jodi.points}',
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 8,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
+        const SizedBox(width: 4),
+        Text(
+          label,
+          style: TextStyle(color: color, fontSize: 10, fontWeight: FontWeight.bold),
+        ),
+        const SizedBox(width: 7),
+        Text(
+          '$points pts',
+          style: const TextStyle(
+            color: Colors.white,
+            fontSize: 10,
+            fontWeight: FontWeight.w700,
           ),
+        ),
+        const SizedBox(width: 4),
+        Text(
+          '($tricks \u2605)',
+          style: const TextStyle(color: Colors.white54, fontSize: 8),
+        ),
       ],
+    );
+  }
+
+  /// Always renders a jodi section — shows badges when present, dash when empty.
+  Widget _jodiRow(List<JodiCall> jodis) {
+    return Padding(
+      padding: const EdgeInsets.only(left: 11, top: 2, bottom: 1),
+      child: jodis.isEmpty
+          ? const Text(
+              'Jodi  —',
+              style: TextStyle(color: Colors.white24, fontSize: 8),
+            )
+          : Wrap(
+              spacing: 4,
+              runSpacing: 2,
+              children: [
+                const Text(
+                  'Jodi',
+                  style: TextStyle(color: Colors.white38, fontSize: 8),
+                ),
+                ...jodis.map(
+                  (j) => Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                    decoration: BoxDecoration(
+                      color: j.isTrump
+                          ? Colors.amber.shade800.withValues(alpha: 0.85)
+                          : Colors.teal.shade700.withValues(alpha: 0.85),
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: Text(
+                      '${j.cards.map((c) => c.shortName).join("+")}${j.isTrump ? " \u2666" : ""}  +${j.points}',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 8,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
     );
   }
 }
@@ -414,16 +537,26 @@ class _JodiCallPanel extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surface,
-        boxShadow: const [BoxShadow(color: Colors.black26, blurRadius: 8)],
+        gradient: LinearGradient(
+          colors: [Colors.teal.shade900, Colors.green.shade900],
+        ),
+        boxShadow: const [BoxShadow(color: Colors.black45, blurRadius: 10, offset: Offset(0, -2))],
       ),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          const Text('Jodi:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
-          const SizedBox(width: 12),
+          const Text(
+            'Jodi!',
+            style: TextStyle(
+              color: Colors.white70,
+              fontWeight: FontWeight.w600,
+              fontSize: 12,
+              letterSpacing: 0.3,
+            ),
+          ),
+          const SizedBox(width: 14),
           ...combos.map((combo) {
             final label = combo.map((c) => c.shortName).join('+');
             final isTrump = ref.read(roundStateProvider)?.trumpSuit != null &&
@@ -436,22 +569,23 @@ class _JodiCallPanel extends ConsumerWidget {
                   ref.read(matchStateProvider.notifier).dismissJodiWindow();
                 },
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: isTrump ? Colors.amber.shade700 : Colors.teal,
+                  backgroundColor: isTrump ? Colors.amber.shade600 : Colors.teal.shade500,
                   foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                  elevation: 4,
                 ),
                 child: Text(
-                  '$label${isTrump ? " (T)" : ""}',
+                  '$label${isTrump ? " \u2666" : ""}',
                   style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
                 ),
               ),
             );
           }),
           TextButton(
-            onPressed: () {
-              ref.read(matchStateProvider.notifier).dismissJodiWindow();
-            },
-            child: const Text('Skip', style: TextStyle(fontSize: 12)),
+            onPressed: () => ref.read(matchStateProvider.notifier).dismissJodiWindow(),
+            style: TextButton.styleFrom(foregroundColor: Colors.white38),
+            child: const Text('Skip', style: TextStyle(fontSize: 11)),
           ),
         ],
       ),
@@ -479,56 +613,97 @@ class _RoundResultOverlay extends StatelessWidget {
     return GestureDetector(
       onTap: onDismiss,
       child: Container(
-        color: Colors.black87,
+        color: Colors.black.withValues(alpha: 0.88),
         child: Center(
           child: Container(
-            padding: const EdgeInsets.all(24),
-            margin: const EdgeInsets.symmetric(horizontal: 40),
+            padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 22),
+            margin: const EdgeInsets.symmetric(horizontal: 48),
             decoration: BoxDecoration(
-              color: Colors.grey.shade900,
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: Colors.amber.shade400, width: 2),
+              gradient: const LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [Color(0xFF1A1A1A), Color(0xFF111111)],
+              ),
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: Colors.amber.shade600, width: 1.5),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.amber.withValues(alpha: 0.2),
+                  blurRadius: 24,
+                  spreadRadius: 4,
+                ),
+                const BoxShadow(color: Colors.black54, blurRadius: 16),
+              ],
             ),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                const Text(
-                  'Round Complete',
-                  style: TextStyle(
-                    color: Colors.amber,
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                  ),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(Icons.emoji_events, color: Colors.amber.shade400, size: 20),
+                    const SizedBox(width: 8),
+                    Text(
+                      matchState.isComplete ? 'MATCH OVER' : 'ROUND COMPLETE',
+                      style: TextStyle(
+                        color: Colors.amber.shade300,
+                        fontSize: 16,
+                        fontWeight: FontWeight.w900,
+                        letterSpacing: 1.2,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Icon(Icons.emoji_events, color: Colors.amber.shade400, size: 20),
+                  ],
                 ),
-                const SizedBox(height: 12),
+                const SizedBox(height: 14),
                 Text(
                   result,
                   textAlign: TextAlign.center,
-                  style: const TextStyle(color: Colors.white, fontSize: 14),
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 13,
+                    height: 1.4,
+                  ),
                 ),
-                const SizedBox(height: 16),
-                // Show match score with card pairs
+                const SizedBox(height: 18),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                   children: [
                     _ScoreColumn(label: t0.name, balls: t0.balls, color: Colors.blue),
+                    Container(width: 1, height: 60, color: Colors.white12),
                     _ScoreColumn(label: t1.name, balls: t1.balls, color: Colors.red),
                   ],
                 ),
-                const SizedBox(height: 16),
+                const SizedBox(height: 18),
                 if (matchState.isComplete)
-                  Text(
-                    '${matchState.winner?.name ?? "A team"} wins the match!',
-                    style: TextStyle(
-                      color: Colors.amber.shade300,
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: Colors.amber.shade800,
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Text(
+                      '${matchState.winner?.name ?? "A team"} wins! \u2605',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 14,
+                        fontWeight: FontWeight.bold,
+                        letterSpacing: 0.4,
+                      ),
                     ),
                   )
                 else
-                  Text(
-                    'Tap to continue',
-                    style: TextStyle(color: Colors.grey.shade400, fontSize: 12),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.touch_app, color: Colors.white24, size: 14),
+                      const SizedBox(width: 4),
+                      Text(
+                        'Tap to continue',
+                        style: TextStyle(color: Colors.grey.shade500, fontSize: 11),
+                      ),
+                    ],
                   ),
               ],
             ),
@@ -573,18 +748,22 @@ class _CardScoreDisplay extends StatelessWidget {
     final t1 = matchState.teams[1];
 
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
       decoration: BoxDecoration(
-        color: Colors.black.withValues(alpha: 0.7),
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: Colors.white10, width: 0.5),
+        color: Colors.black.withValues(alpha: 0.78),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: Colors.white12, width: 0.8),
+        boxShadow: const [BoxShadow(color: Colors.black45, blurRadius: 8)],
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           _DiamondScoreRow(label: 'T1', balls: t0.balls, color: Colors.blue.shade300),
-          const SizedBox(height: 4),
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 3),
+            child: Divider(height: 1, thickness: 0.5, color: Colors.white12),
+          ),
           _DiamondScoreRow(label: 'T2', balls: t1.balls, color: Colors.red.shade300),
         ],
       ),

@@ -11,11 +11,13 @@ import '../../domain/models/trick.dart';
 import '../../domain/services/game_engine.dart';
 import '../../domain/bot/rule_based_bot.dart';
 import '../../domain/bot/bot_policy.dart';
+import '../../domain/bot/trump_selector.dart';
 
 /// Manages game state and orchestrates actions
 class GameStateNotifier extends StateNotifier<MatchState?> {
   final GameEngine _engine;
   final BotPolicy _botPolicy;
+  final Seat localSeat;
   bool _callWindowDismissed = false;
   int _callWindowWaitCount = 0;
   bool _jodiWindowOpen = false;
@@ -30,7 +32,7 @@ class GameStateNotifier extends StateNotifier<MatchState?> {
 
   final Random _rng = Random();
 
-  GameStateNotifier(GameEngine engine, [BotPolicy? botPolicy])
+  GameStateNotifier(GameEngine engine, {BotPolicy? botPolicy, this.localSeat = Seat.south})
       : _engine = engine,
         _botPolicy = botPolicy ?? RuleBasedBot(config: engine.config),
         super(null);
@@ -69,12 +71,12 @@ class GameStateNotifier extends StateNotifier<MatchState?> {
   /// Human player makes a bid
   void makeBid(int amount) {
     if (state == null || state!.currentRound == null) return;
-    if (_passedSeats.contains(Seat.south)) return; // already passed
+    if (_passedSeats.contains(localSeat)) return; // already passed
 
     final result = _engine.makeBid(
       state: state!.currentRound!,
       amount: amount,
-      bidder: Seat.south,
+      bidder: localSeat,
     );
 
     if (result.success && result.newState != null) {
@@ -88,16 +90,19 @@ class GameStateNotifier extends StateNotifier<MatchState?> {
   /// Human player passes on bidding
   void passBid() {
     if (state == null || state!.currentRound == null) return;
-    if (_passedSeats.contains(Seat.south)) return; // already passed
+    if (_passedSeats.contains(localSeat)) return; // already passed
+    // Can't pass on your own highest bid
+    final round = state!.currentRound!;
+    if (round.highestBid != null && round.highestBid!.caller == localSeat) return;
 
     final result = _engine.passBid(
       state: state!.currentRound!,
-      passer: Seat.south,
+      passer: localSeat,
     );
 
     if (result.success && result.newState != null) {
       _biddingEpoch++;
-      _passedSeats.add(Seat.south);
+      _passedSeats.add(localSeat);
       _updateRoundState(result.newState!);
       _checkBiddingDoneOrSchedule();
     }
@@ -132,7 +137,7 @@ class GameStateNotifier extends StateNotifier<MatchState?> {
   void callThunee() {
     if (state == null || state!.currentRound == null) return;
     final round = state!.currentRound!;
-    final call = ThuneeCall(caller: Seat.south);
+    final call = ThuneeCall(caller: localSeat);
     final result = _engine.makeSpecialCall(state: round, call: call);
     if (result.success && result.newState != null) {
       _updateRoundState(result.newState!);
@@ -145,7 +150,7 @@ class GameStateNotifier extends StateNotifier<MatchState?> {
   void callRoyals() {
     if (state == null || state!.currentRound == null) return;
     final round = state!.currentRound!;
-    final call = RoyalsCall(caller: Seat.south);
+    final call = RoyalsCall(caller: localSeat);
     final result = _engine.makeSpecialCall(state: round, call: call);
     if (result.success && result.newState != null) {
       _updateRoundState(result.newState!);
@@ -162,7 +167,7 @@ class GameStateNotifier extends StateNotifier<MatchState?> {
         cards.every((c) => c.suit == round.trumpSuit);
 
     final call = JodiCall(
-      caller: Seat.south,
+      caller: localSeat,
       cards: cards,
       isTrump: isTrump,
     );
@@ -305,14 +310,14 @@ class GameStateNotifier extends StateNotifier<MatchState?> {
     }
   }
 
-  /// Returns true if the human (south) has a Jodi combo and is on the winning team
+  /// Returns true if the local human has a Jodi combo and is on the winning team
   bool _humanHasJodiCombo(RoundState rs) {
     final lastTrick = rs.completedTricks.last;
     final winnerTeam = lastTrick.winningSeat!.teamNumber;
-    if (Seat.south.teamNumber != winnerTeam) return false;
+    if (localSeat.teamNumber != winnerTeam) return false;
 
-    final southPlayer = rs.playerAt(Seat.south);
-    return _findJodiCombos(southPlayer.hand, rs.trumpSuit).isNotEmpty;
+    final localPlayer = rs.playerAt(localSeat);
+    return _findJodiCombos(localPlayer.hand, rs.trumpSuit).isNotEmpty;
   }
 
   /// Finds all valid Jodi combos in a hand
@@ -377,15 +382,15 @@ class GameStateNotifier extends StateNotifier<MatchState?> {
     if (currentPlayer.isBot) {
       // If in the Thunee/Royals call window, wait for it to close first
       // Force-dismiss after ~5s (10 retries × 500ms) as a safety net
-      if (_isInCallWindow(roundState) && _callWindowWaitCount < 10) {
+      if (_isInCallWindow(roundState) && _callWindowWaitCount < 30) {
         _callWindowWaitCount++;
         Future.delayed(const Duration(milliseconds: 500), () {
           _checkBotTurn(); // Re-check after short delay
         });
         return;
       }
-      // Reset counter and force-dismiss if we hit the limit
-      if (_callWindowWaitCount >= 10) {
+      // Reset counter and force-dismiss if we hit the limit (15s)
+      if (_callWindowWaitCount >= 30) {
         _callWindowDismissed = true;
       }
       _callWindowWaitCount = 0;
@@ -398,10 +403,9 @@ class GameStateNotifier extends StateNotifier<MatchState?> {
   }
 
   /// Returns true when the Thunee/Royals call window is still open.
-  /// Only blocks bots if a human (south) is on the trump-making team.
+  /// Always blocks bots so human gets the chance to call before first trick.
   bool _isInCallWindow(RoundState rs) {
     if (_callWindowDismissed) return false;
-    if (Seat.south.teamNumber != rs.trumpMakingTeam) return false;
     return rs.phase == RoundPhase.playing &&
         rs.completedTricks.isEmpty &&
         rs.currentTrick != null &&
@@ -436,22 +440,13 @@ class GameStateNotifier extends StateNotifier<MatchState?> {
     }
   }
 
-  /// Bot selects trump — picks the suit with the most cards in hand
+  /// Bot selects trump using scoring heuristic (Jodi, Jack, Nine, etc.)
   void _executeBotTrumpSelection(Player bot, RoundState roundState) {
     final hand = bot.hand;
     if (hand.isEmpty) return;
 
-    // Count cards per suit
-    final suitCards = <Suit, List<Card>>{};
-    for (final card in hand) {
-      suitCards.putIfAbsent(card.suit, () => []).add(card);
-    }
-
-    // Pick the suit with the most cards (trump potential); ties: first found
-    final bestEntry = suitCards.entries
-        .reduce((a, b) => a.value.length >= b.value.length ? a : b);
-
-    final trumpCard = bestEntry.value.first;
+    final bestSuit = selectBestTrumpSuit(hand);
+    final trumpCard = hand.firstWhere((c) => c.suit == bestSuit);
 
     final result = _engine.selectTrump(state: roundState, card: trumpCard);
 
@@ -472,6 +467,8 @@ class GameStateNotifier extends StateNotifier<MatchState?> {
     for (final player in rs.players) {
       if (!player.isBot) continue;
       if (_passedSeats.contains(player.seat)) continue;
+      // Highest bidder doesn't act — they already hold the top bid
+      if (rs.highestBid != null && rs.highestBid!.caller == player.seat) continue;
 
       final delay = 400 + _rng.nextInt(1600); // 400–2000ms
       Future.delayed(Duration(milliseconds: delay), () {

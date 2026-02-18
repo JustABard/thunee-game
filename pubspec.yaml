@@ -49,6 +49,12 @@ dependencies:
 
   # Utilities
   equatable: ^2.0.5
+  uuid: ^4.3.3
+
+  # Firebase
+  firebase_core: ^3.9.0
+  firebase_database: ^11.3.0
+  firebase_auth: ^5.5.0
 
   # Animations
   flutter_animate: ^4.3.0

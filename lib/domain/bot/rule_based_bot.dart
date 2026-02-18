@@ -1,3 +1,5 @@
+import 'dart:math';
+
 import '../models/card.dart';
 import '../models/game_config.dart';
 import '../models/player.dart';
@@ -20,9 +22,9 @@ class RuleBasedBot implements BotPolicy {
   final CardSelector _cardSelector;
   final CallDecisionMaker _callDecisionMaker;
 
-  RuleBasedBot({GameConfig config = const GameConfig()})
-      : _cardSelector = CardSelector(CardRanker(), TrickResolver(CardRanker())),
-        _callDecisionMaker = CallDecisionMaker(config);
+  RuleBasedBot({GameConfig config = const GameConfig(), Random? rng})
+      : _cardSelector = CardSelector(CardRanker(), TrickResolver(CardRanker()), rng),
+        _callDecisionMaker = CallDecisionMaker(config, rng: rng);
 
   /// Factory constructor for custom dependencies (useful for testing)
   factory RuleBasedBot.withDependencies({

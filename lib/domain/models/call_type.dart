@@ -26,6 +26,37 @@ abstract class CallData extends Equatable {
     required this.caller,
   });
 
+  /// Serializes to JSON map (polymorphic via 'category' discriminator)
+  Map<String, dynamic> toJson() => {
+        'category': category.name,
+        'caller': caller.name,
+      };
+
+  /// Deserializes from JSON map (dispatches to correct subclass)
+  static CallData fromJson(Map<String, dynamic> json) {
+    final category = CallCategory.values.byName(json['category'] as String);
+    switch (category) {
+      case CallCategory.bid:
+        return BidCall.fromJson(json);
+      case CallCategory.pass:
+        return PassCall.fromJson(json);
+      case CallCategory.thunee:
+        return ThuneeCall.fromJson(json);
+      case CallCategory.royals:
+        return RoyalsCall.fromJson(json);
+      case CallCategory.blindThunee:
+        return BlindThuneeCall.fromJson(json);
+      case CallCategory.blindRoyals:
+        return BlindRoyalsCall.fromJson(json);
+      case CallCategory.jodi:
+        return JodiCall.fromJson(json);
+      case CallCategory.double:
+        return DoubleCall.fromJson(json);
+      case CallCategory.kunuck:
+        return KunuckCall.fromJson(json);
+    }
+  }
+
   @override
   List<Object?> get props => [category, caller];
 }
@@ -40,6 +71,14 @@ class BidCall extends CallData {
   }) : super(category: CallCategory.bid, caller: caller);
 
   @override
+  Map<String, dynamic> toJson() => {...super.toJson(), 'amount': amount};
+
+  factory BidCall.fromJson(Map<String, dynamic> json) => BidCall(
+        caller: Seat.values.byName(json['caller'] as String),
+        amount: json['amount'] as int,
+      );
+
+  @override
   List<Object?> get props => [...super.props, amount];
 
   @override
@@ -51,6 +90,10 @@ class PassCall extends CallData {
   const PassCall({
     required Seat caller,
   }) : super(category: CallCategory.pass, caller: caller);
+
+  factory PassCall.fromJson(Map<String, dynamic> json) => PassCall(
+        caller: Seat.values.byName(json['caller'] as String),
+      );
 
   @override
   String toString() => 'Pass($caller)';
@@ -68,6 +111,19 @@ class ThuneeCall extends CallData {
   ThuneeCall withTrumpSuit(Suit suit) {
     return ThuneeCall(caller: caller, trumpSuit: suit);
   }
+
+  @override
+  Map<String, dynamic> toJson() => {
+        ...super.toJson(),
+        'trumpSuit': trumpSuit?.name,
+      };
+
+  factory ThuneeCall.fromJson(Map<String, dynamic> json) => ThuneeCall(
+        caller: Seat.values.byName(json['caller'] as String),
+        trumpSuit: json['trumpSuit'] != null
+            ? Suit.values.byName(json['trumpSuit'] as String)
+            : null,
+      );
 
   @override
   List<Object?> get props => [...super.props, trumpSuit];
@@ -88,6 +144,19 @@ class RoyalsCall extends CallData {
   RoyalsCall withTrumpSuit(Suit suit) {
     return RoyalsCall(caller: caller, trumpSuit: suit);
   }
+
+  @override
+  Map<String, dynamic> toJson() => {
+        ...super.toJson(),
+        'trumpSuit': trumpSuit?.name,
+      };
+
+  factory RoyalsCall.fromJson(Map<String, dynamic> json) => RoyalsCall(
+        caller: Seat.values.byName(json['caller'] as String),
+        trumpSuit: json['trumpSuit'] != null
+            ? Suit.values.byName(json['trumpSuit'] as String)
+            : null,
+      );
 
   @override
   List<Object?> get props => [...super.props, trumpSuit];
@@ -116,6 +185,24 @@ class BlindThuneeCall extends CallData {
   }
 
   @override
+  Map<String, dynamic> toJson() => {
+        ...super.toJson(),
+        'hiddenCards': hiddenCards.map((c) => c.toJson()).toList(),
+        'trumpSuit': trumpSuit?.name,
+      };
+
+  factory BlindThuneeCall.fromJson(Map<String, dynamic> json) =>
+      BlindThuneeCall(
+        caller: Seat.values.byName(json['caller'] as String),
+        hiddenCards: (json['hiddenCards'] as List)
+            .map((c) => Card.fromJson(c as String))
+            .toList(),
+        trumpSuit: json['trumpSuit'] != null
+            ? Suit.values.byName(json['trumpSuit'] as String)
+            : null,
+      );
+
+  @override
   List<Object?> get props => [...super.props, hiddenCards, trumpSuit];
 
   @override
@@ -140,6 +227,24 @@ class BlindRoyalsCall extends CallData {
       trumpSuit: suit,
     );
   }
+
+  @override
+  Map<String, dynamic> toJson() => {
+        ...super.toJson(),
+        'hiddenCards': hiddenCards.map((c) => c.toJson()).toList(),
+        'trumpSuit': trumpSuit?.name,
+      };
+
+  factory BlindRoyalsCall.fromJson(Map<String, dynamic> json) =>
+      BlindRoyalsCall(
+        caller: Seat.values.byName(json['caller'] as String),
+        hiddenCards: (json['hiddenCards'] as List)
+            .map((c) => Card.fromJson(c as String))
+            .toList(),
+        trumpSuit: json['trumpSuit'] != null
+            ? Suit.values.byName(json['trumpSuit'] as String)
+            : null,
+      );
 
   @override
   List<Object?> get props => [...super.props, hiddenCards, trumpSuit];
@@ -172,6 +277,21 @@ class JodiCall extends CallData {
   }
 
   @override
+  Map<String, dynamic> toJson() => {
+        ...super.toJson(),
+        'cards': cards.map((c) => c.toJson()).toList(),
+        'isTrump': isTrump,
+      };
+
+  factory JodiCall.fromJson(Map<String, dynamic> json) => JodiCall(
+        caller: Seat.values.byName(json['caller'] as String),
+        cards: (json['cards'] as List)
+            .map((c) => Card.fromJson(c as String))
+            .toList(),
+        isTrump: json['isTrump'] as bool,
+      );
+
+  @override
   List<Object?> get props => [...super.props, cards, isTrump];
 
   @override
@@ -184,6 +304,10 @@ class DoubleCall extends CallData {
     required Seat caller,
   }) : super(category: CallCategory.double, caller: caller);
 
+  factory DoubleCall.fromJson(Map<String, dynamic> json) => DoubleCall(
+        caller: Seat.values.byName(json['caller'] as String),
+      );
+
   @override
   String toString() => 'Double(by $caller)';
 }
@@ -193,6 +317,10 @@ class KunuckCall extends CallData {
   const KunuckCall({
     required Seat caller,
   }) : super(category: CallCategory.kunuck, caller: caller);
+
+  factory KunuckCall.fromJson(Map<String, dynamic> json) => KunuckCall(
+        caller: Seat.values.byName(json['caller'] as String),
+      );
 
   @override
   String toString() => 'Kunuck(by $caller)';

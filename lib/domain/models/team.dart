@@ -54,6 +54,24 @@ class Team extends Equatable {
     );
   }
 
+  /// Serializes to JSON map
+  Map<String, dynamic> toJson() => {
+        'teamNumber': teamNumber,
+        'name': name,
+        'tricksWon': tricksWon,
+        'pointsCollected': pointsCollected,
+        'balls': balls,
+      };
+
+  /// Deserializes from JSON map
+  factory Team.fromJson(Map<String, dynamic> json) => Team(
+        teamNumber: json['teamNumber'] as int,
+        name: json['name'] as String,
+        tricksWon: json['tricksWon'] as int? ?? 0,
+        pointsCollected: json['pointsCollected'] as int? ?? 0,
+        balls: json['balls'] as int? ?? 0,
+      );
+
   @override
   List<Object?> get props => [teamNumber, name, tricksWon, pointsCollected, balls];
 

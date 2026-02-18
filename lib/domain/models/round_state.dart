@@ -215,6 +215,73 @@ class RoundState extends Equatable {
     return copyWith(teams: updatedTeams);
   }
 
+  /// Serializes to JSON map
+  Map<String, dynamic> toJson() => {
+        'phase': phase.name,
+        'players': players.map((p) => p.toJson()).toList(),
+        'teams': teams.map((t) => t.toJson()).toList(),
+        'completedTricks':
+            completedTricks.map((t) => t.toJson()).toList(),
+        'currentTrick': currentTrick?.toJson(),
+        'callHistory':
+            callHistory.map((c) => c.toJson()).toList(),
+        'highestBid': highestBid?.toJson(),
+        'passCount': passCount,
+        'trumpSuit': trumpSuit?.name,
+        'trumpCard': trumpCard?.toJson(),
+        'trumpMakingTeam': trumpMakingTeam,
+        'currentTurn': currentTurn.name,
+        'dealer': dealer.name,
+        'remainingCards': remainingCards
+            ?.map((cards) => cards.map((c) => c.toJson()).toList())
+            .toList(),
+      };
+
+  /// Deserializes from JSON map
+  factory RoundState.fromJson(Map<String, dynamic> json) {
+    return RoundState(
+      phase: RoundPhase.values.byName(json['phase'] as String),
+      players: (json['players'] as List)
+          .map((p) => Player.fromJson(p as Map<String, dynamic>))
+          .toList(),
+      teams: (json['teams'] as List)
+          .map((t) => Team.fromJson(t as Map<String, dynamic>))
+          .toList(),
+      completedTricks: (json['completedTricks'] as List?)
+              ?.map((t) => Trick.fromJson(t as Map<String, dynamic>))
+              .toList() ??
+          [],
+      currentTrick: json['currentTrick'] != null
+          ? Trick.fromJson(json['currentTrick'] as Map<String, dynamic>)
+          : null,
+      callHistory: (json['callHistory'] as List?)
+              ?.map(
+                  (c) => CallData.fromJson(c as Map<String, dynamic>))
+              .toList() ??
+          [],
+      highestBid: json['highestBid'] != null
+          ? BidCall.fromJson(json['highestBid'] as Map<String, dynamic>)
+          : null,
+      passCount: json['passCount'] as int? ?? 0,
+      trumpSuit: json['trumpSuit'] != null
+          ? Suit.values.byName(json['trumpSuit'] as String)
+          : null,
+      trumpCard: json['trumpCard'] != null
+          ? Card.fromJson(json['trumpCard'] as String)
+          : null,
+      trumpMakingTeam: json['trumpMakingTeam'] as int? ?? 0,
+      currentTurn:
+          Seat.values.byName(json['currentTurn'] as String),
+      dealer: Seat.values.byName(
+          json['dealer'] as String? ?? 'south'),
+      remainingCards: (json['remainingCards'] as List?)
+          ?.map((cards) => (cards as List)
+              .map((c) => Card.fromJson(c as String))
+              .toList())
+          .toList(),
+    );
+  }
+
   @override
   List<Object?> get props => [
         phase,

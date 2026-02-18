@@ -110,6 +110,26 @@ class Player extends Equatable {
   /// Checks if hand is empty
   bool get hasNoCards => hand.isEmpty;
 
+  /// Serializes to JSON map
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'name': name,
+        'seat': seat.name,
+        'hand': hand.map((c) => c.toJson()).toList(),
+        'isBot': isBot,
+      };
+
+  /// Deserializes from JSON map
+  factory Player.fromJson(Map<String, dynamic> json) => Player(
+        id: json['id'] as String,
+        name: json['name'] as String,
+        seat: Seat.values.byName(json['seat'] as String),
+        hand: (json['hand'] as List)
+            .map((c) => Card.fromJson(c as String))
+            .toList(),
+        isBot: json['isBot'] as bool,
+      );
+
   @override
   List<Object?> get props => [id, name, seat, hand, isBot];
 

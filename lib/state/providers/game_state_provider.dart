@@ -1,12 +1,14 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../domain/models/card.dart';
-import '../../domain/models/game_config.dart';
 import '../../domain/models/match_state.dart';
 import '../../domain/models/player.dart';
 import '../../domain/models/round_state.dart';
 import '../../domain/services/game_engine.dart';
 import '../notifiers/game_state_notifier.dart';
+import '../notifiers/multiplayer_game_notifier.dart';
 import 'config_provider.dart';
+import 'local_seat_provider.dart';
+import 'lobby_provider.dart';
 
 /// Provider for game engine (uses persisted config)
 final gameEngineProvider = Provider<GameEngine>((ref) {
@@ -17,7 +19,8 @@ final gameEngineProvider = Provider<GameEngine>((ref) {
 /// Provider for match state
 final matchStateProvider = StateNotifierProvider<GameStateNotifier, MatchState?>((ref) {
   final engine = ref.watch(gameEngineProvider);
-  return GameStateNotifier(engine);
+  final localSeat = ref.watch(localSeatProvider);
+  return GameStateNotifier(engine, localSeat: localSeat);
 });
 
 /// Provider for current round state
@@ -26,13 +29,14 @@ final roundStateProvider = Provider<RoundState?>((ref) {
   return matchState?.currentRound;
 });
 
-/// Provider for current player (human player in seat south)
+/// Provider for current player (human player at the local seat)
 final currentHumanPlayerProvider = Provider<Player?>((ref) {
   final roundState = ref.watch(roundStateProvider);
   if (roundState == null) return null;
 
+  final localSeat = ref.watch(localSeatProvider);
   return roundState.players.firstWhere(
-    (p) => p.seat == Seat.south,
+    (p) => p.seat == localSeat,
     orElse: () => roundState.players.first,
   );
 });
@@ -59,14 +63,15 @@ final legalCardsProvider = Provider<List<Card>>((ref) {
   return engine.getLegalCards(roundState);
 });
 
-/// True when the human (Seat.south) is the trump chooser and must now tap a card to set trump.
+/// True when the local human is the trump chooser and must now tap a card to set trump.
 final isChoosingTrumpProvider = Provider<bool>((ref) {
   final roundState = ref.watch(roundStateProvider);
   if (roundState == null) return false;
 
+  final localSeat = ref.watch(localSeatProvider);
   // During choosingTrump, currentTurn is set to the trump chooser
   return roundState.phase == RoundPhase.choosingTrump &&
-      roundState.currentTurn == Seat.south;
+      roundState.currentTurn == localSeat;
 });
 
 /// Tracks whether the human dismissed the Thunee/Royals call prompt this round.
@@ -75,6 +80,7 @@ final thuneePromptDismissedProvider = StateProvider<bool>((ref) => false);
 
 /// True during the Thunee/Royals call window:
 /// playing phase has started, no tricks have been played yet, and no call has been made.
+/// Always shown to the human player regardless of which team made trump.
 final canCallThuneeProvider = Provider<bool>((ref) {
   final roundState = ref.watch(roundStateProvider);
   if (roundState == null) return false;
@@ -86,9 +92,6 @@ final canCallThuneeProvider = Provider<bool>((ref) {
 
   // Only if no Thunee/Royals call has been made yet
   if (roundState.activeThuneeCall != null) return false;
-
-  // Only show to human if they're on the trump-making team
-  if (Seat.south.teamNumber != roundState.trumpMakingTeam) return false;
 
   // Hide if human dismissed the prompt
   return !ref.watch(thuneePromptDismissedProvider);
@@ -114,6 +117,29 @@ final availableJodiCombosProvider = Provider<List<List<Card>>>((ref) {
   final roundState = ref.watch(roundStateProvider);
   if (roundState == null) return [];
 
-  final southPlayer = roundState.playerAt(Seat.south);
-  return GameStateNotifier.findJodiCombos(southPlayer.hand, roundState.trumpSuit);
+  final localSeat = ref.watch(localSeatProvider);
+  final localPlayer = roundState.playerAt(localSeat);
+  return GameStateNotifier.findJodiCombos(localPlayer.hand, roundState.trumpSuit);
+});
+
+/// Multiplayer match state provider — only active when game mode is online.
+final multiplayerMatchStateProvider =
+    StateNotifierProvider<MultiplayerGameNotifier, MatchState?>((ref) {
+  final engine = ref.watch(gameEngineProvider);
+  final localSeat = ref.watch(localSeatProvider);
+  final lobbyCode = ref.watch(lobbyCodeProvider);
+  final playerId = ref.watch(localPlayerIdProvider);
+  final isHost = ref.watch(isHostProvider);
+  final gameService = ref.watch(firebaseGameServiceProvider);
+  final lobbyService = ref.watch(firebaseLobbyServiceProvider);
+
+  return MultiplayerGameNotifier(
+    engine: engine,
+    gameService: gameService,
+    lobbyService: lobbyService,
+    lobbyCode: lobbyCode ?? '',
+    playerId: playerId,
+    localSeat: localSeat,
+    isHost: isHost,
+  );
 });

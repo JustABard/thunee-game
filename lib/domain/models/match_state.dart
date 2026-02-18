@@ -136,6 +136,41 @@ class MatchState extends Equatable {
     );
   }
 
+  /// Serializes to JSON map
+  Map<String, dynamic> toJson() => {
+        'config': config.toJson(),
+        'players': players.map((p) => p.toJson()).toList(),
+        'teams': teams.map((t) => t.toJson()).toList(),
+        'completedRounds':
+            completedRounds.map((r) => r.toJson()).toList(),
+        'currentRound': currentRound?.toJson(),
+        'isComplete': isComplete,
+        'winningTeam': winningTeam,
+      };
+
+  /// Deserializes from JSON map
+  factory MatchState.fromJson(Map<String, dynamic> json) => MatchState(
+        config:
+            GameConfig.fromJson(json['config'] as Map<String, dynamic>),
+        players: (json['players'] as List)
+            .map((p) => Player.fromJson(p as Map<String, dynamic>))
+            .toList(),
+        teams: (json['teams'] as List)
+            .map((t) => Team.fromJson(t as Map<String, dynamic>))
+            .toList(),
+        completedRounds: (json['completedRounds'] as List?)
+                ?.map((r) =>
+                    RoundState.fromJson(r as Map<String, dynamic>))
+                .toList() ??
+            [],
+        currentRound: json['currentRound'] != null
+            ? RoundState.fromJson(
+                json['currentRound'] as Map<String, dynamic>)
+            : null,
+        isComplete: json['isComplete'] as bool? ?? false,
+        winningTeam: json['winningTeam'] as int?,
+      );
+
   @override
   List<Object?> get props => [
         config,

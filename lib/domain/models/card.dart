@@ -24,6 +24,12 @@ class Card extends Equatable {
   @override
   List<Object?> get props => [suit, rank];
 
+  /// Serializes to JSON (uses shortName string)
+  String toJson() => shortName;
+
+  /// Deserializes from JSON string
+  static Card fromJson(String json) => Card.fromString(json);
+
   @override
   String toString() => shortName;
 
