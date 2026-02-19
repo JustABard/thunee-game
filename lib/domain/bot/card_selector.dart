@@ -13,18 +13,18 @@ import 'game_tracker.dart';
 /// Selects cards for bot to play using a priority-based engine.
 ///
 /// Leading priorities (first non-null wins):
-///   0. Random deviation (~12%)
+///   0. Random deviation (~5%)
 ///   1. Counter opponent Thunee
 ///   2. Win for Jodi (tricks 1/3)
 ///   3. Lead Jack (prefer non-trump, shorter suit)
 ///   4. Pool trump (lead J of trump to flush opponents)
 ///   5. Bait play (A/9 in suits where bot holds J)
-///   6. Win last trick (tricks 5/6)
+///   6. Win last trick (tricks 5/6) - strategic card preservation
 ///   7. Lead highest remaining (guaranteed win)
 ///   8. Dump lowest card
 ///
 /// Following priorities:
-///   0. Random deviation (~12%)
+///   0. Random deviation (~5%)
 ///   1. Thunee/Royals support
 ///   2. Smart cut
 ///   3. Win or dump (core logic)
@@ -122,9 +122,9 @@ class CardSelector {
     return _leadLowestCard(legalCards, state);
   }
 
-  /// ~12% chance of picking a random legal card.
+  /// ~5% chance of picking a random legal card.
   Card? _maybeRandomDeviation(List<Card> legalCards) {
-    if (_rng.nextDouble() < 0.12) {
+    if (_rng.nextDouble() < 0.05) {
       return legalCards[_rng.nextInt(legalCards.length)];
     }
     return null;
@@ -288,8 +288,9 @@ class CardSelector {
 
   /// Tricks 5/6: play to guarantee winning the last trick.
   ///
-  /// On trick 5 (penultimate): if bot holds the highest remaining trump,
-  /// play a non-trump card now and save trump to guarantee trick 6.
+  /// On trick 5 (penultimate): DON'T incentivize winning UNLESS certain to also
+  /// win trick 6. If uncertain about winning trick 5, play a card that might NOT
+  /// win trick 5 to preserve a guaranteed winner for trick 6.
   /// On trick 6 (last): play strongest card.
   Card? _tryWinLastTrick(
     List<Card> legalCards,
@@ -302,24 +303,36 @@ class CardSelector {
 
     final trumpSuit = state.trumpSuit;
 
-    // Trick 5 (penultimate): save highest trump for last trick
-    if (trickCount == 4 && trumpSuit != null && bot.hand.length == 2) {
-      final trumpCards = legalCards.where((c) => c.suit == trumpSuit).toList();
-      final nonTrumpCards = legalCards.where((c) => c.suit != trumpSuit).toList();
-
-      if (trumpCards.length == 1 && nonTrumpCards.length == 1) {
-        final myTrump = trumpCards.first;
-        // Check if our trump is the highest remaining trump
-        final highestTrump = tracker.highestRemainingInSuit(trumpSuit);
-        if (highestTrump != null && highestTrump == myTrump) {
-          // We have the guaranteed last-trick winner — play non-trump now
-          return nonTrumpCards.first;
-        }
+    // Trick 5 (penultimate): strategic card preservation
+    if (trickCount == 4 && bot.hand.length == 2) {
+      // Find cards that are guaranteed winners (highest remaining in their suit)
+      final guaranteedWinners = legalCards.where((c) => tracker.isHighestRemaining(c)).toList();
+      
+      // If we have exactly one guaranteed winner, save it for trick 6
+      if (guaranteedWinners.length == 1) {
+        final guaranteedCard = guaranteedWinners.first;
+        final otherCard = legalCards.firstWhere((c) => c != guaranteedCard);
+        // Play the non-guaranteed card now, saving the guaranteed winner for last
+        return otherCard;
       }
+      
+      // If we have 2 guaranteed winners, we can win both - play the weaker one
+      if (guaranteedWinners.length == 2) {
+        return _getWeakestCard(guaranteedWinners, state);
+      }
+      
+      // If we have no guaranteed winners, play the weaker card and hope
+      // for the best - no point saving a non-guaranteed card
+      return _getWeakestCard(legalCards, state);
     }
 
-    // Trick 6 or fallback: play strongest card
-    return _getStrongestCard(legalCards, state);
+    // Trick 6 (last): play strongest card
+    if (trickCount == 5) {
+      return _getStrongestCard(legalCards, state);
+    }
+
+    // Fallback for other cases (shouldn't normally reach here)
+    return null;
   }
 
   /// If a card is guaranteed highest remaining in its suit → lead it.
