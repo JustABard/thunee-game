@@ -242,6 +242,19 @@ class CallValidator {
       }
     }
 
+    // Check if Jodi was already called in this suit this trick window
+    final suit = call.cards.first.suit;
+    final existingJodis = state.specialCalls
+        .where((c) => c.category == CallCategory.jodi)
+        .cast<JodiCall>();
+    for (final existing in existingJodis) {
+      if (existing.cards.first.suit == suit) {
+        return CallValidationResult.invalid(
+          'Jodi already called for ${suit.displayName} this round',
+        );
+      }
+    }
+
     // Validate card combination
     if (call.cards.length == 2) {
       // Must be King + Queen

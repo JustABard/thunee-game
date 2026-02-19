@@ -52,7 +52,113 @@ class CallDecisionMaker {
   BotDecision? decideSpecialCall({
     required RoundState state,
     required Player bot,
-  }) => null;
+  }) {
+    // Only consider calls before the first trick
+    if (state.completedTricks.isNotEmpty) return null;
+    if (state.activeThuneeCall != null) return null;
+
+    // Try Thunee (standard ranking: J > 9 > A > 10 > K > Q)
+    if (_shouldCallThunee(bot.hand)) {
+      return MakeSpecialCallDecision(ThuneeCall(caller: bot.seat));
+    }
+
+    // Try Royals (reversed ranking: Q > K > 10 > A > 9 > J)
+    if (config.enableRoyals && _shouldCallRoyals(bot.hand)) {
+      return MakeSpecialCallDecision(RoyalsCall(caller: bot.seat));
+    }
+
+    return null;
+  }
+
+  /// Evaluates whether the hand is strong enough for a Thunee call.
+  ///
+  /// Counts "catches" — cards where opponent could potentially win the trick.
+  /// A catch is a suit where we don't hold the Jack (highest card in standard).
+  /// Allows at most 1 catch, and only if the catch is low-risk.
+  bool _shouldCallThunee(List<Card> hand) {
+    final suitCards = <Suit, List<Card>>{};
+    for (final card in hand) {
+      suitCards.putIfAbsent(card.suit, () => []).add(card);
+    }
+
+    int catches = 0;
+
+    for (final entry in suitCards.entries) {
+      final cards = entry.value;
+
+      // Sort descending by standard ranking
+      cards.sort((a, b) => b.rank.standardRanking.compareTo(a.rank.standardRanking));
+
+      // If we hold the Jack of this suit, it's the highest — no catch
+      final hasJack = cards.any((c) => c.rank == Rank.jack);
+
+      if (hasJack) {
+        // Jack is guaranteed winner in its suit — safe
+        continue;
+      }
+
+      // No Jack in this suit — every card here is a potential catch
+      // unless we have the 9 and the J was already... but this is pre-play
+      // so we can't know. Count each non-Jack card as a catch.
+      for (final card in cards) {
+        // Low cards (K, Q) are almost always catches
+        // High cards (9, A) are risky but less so
+        if (card.rank == Rank.nine) {
+          // 9 is second-highest — only loses to J. Low-risk catch.
+          catches++;
+        } else {
+          // A, 10, K, Q without J protection — definite catch
+          catches++;
+        }
+      }
+    }
+
+    // Max 1 catch, and add some randomness to avoid being too predictable
+    if (catches == 0) return true;
+    if (catches == 1) return _rng.nextDouble() < 0.65; // 65% chance with 1 catch
+    return false;
+  }
+
+  /// Evaluates whether the hand is strong enough for a Royals call.
+  ///
+  /// In Royals, ranking is reversed: Q > K > 10 > A > 9 > J.
+  /// Same logic as Thunee but uses royals ranking.
+  bool _shouldCallRoyals(List<Card> hand) {
+    final suitCards = <Suit, List<Card>>{};
+    for (final card in hand) {
+      suitCards.putIfAbsent(card.suit, () => []).add(card);
+    }
+
+    int catches = 0;
+
+    for (final entry in suitCards.entries) {
+      final cards = entry.value;
+
+      // Sort descending by royals ranking
+      cards.sort((a, b) => b.rank.royalsRanking.compareTo(a.rank.royalsRanking));
+
+      // Queen is highest in Royals
+      final hasQueen = cards.any((c) => c.rank == Rank.queen);
+
+      if (hasQueen) {
+        // Queen is guaranteed winner in Royals — safe
+        continue;
+      }
+
+      for (final card in cards) {
+        if (card.rank == Rank.king) {
+          // King is second-highest in Royals — only loses to Q. Low-risk.
+          catches++;
+        } else {
+          catches++;
+        }
+      }
+    }
+
+    if (catches == 0) return true;
+    if (catches == 1) return _rng.nextDouble() < 0.65;
+    return false;
+  }
 
   // ─── Structural qualifiers ─────────────────────────────────────────────────
 

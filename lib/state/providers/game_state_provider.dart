@@ -119,7 +119,8 @@ final availableJodiCombosProvider = Provider<List<List<Card>>>((ref) {
 
   final localSeat = ref.watch(localSeatProvider);
   final localPlayer = roundState.playerAt(localSeat);
-  return GameStateNotifier.findJodiCombos(localPlayer.hand, roundState.trumpSuit);
+  return GameStateNotifier.findJodiCombos(
+      localPlayer.hand, roundState.trumpSuit, roundState.callHistory);
 });
 
 /// Multiplayer match state provider — only active when game mode is online.

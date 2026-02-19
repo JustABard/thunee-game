@@ -41,12 +41,15 @@ class GameStateNotifier extends StateNotifier<MatchState?> {
   String? get lastRoundResult => _lastRoundResult;
 
   /// Dismisses the round result overlay and starts the next round.
+  /// If the match is complete, does not start a new round.
   void dismissRoundResult() {
     _lastRoundResult = null;
     // Trigger rebuild
     if (state != null) {
       state = state!.copyWith();
     }
+    // Don't start a new round if the match is over
+    if (state != null && state!.isComplete) return;
     _startNextRound();
   }
 
@@ -293,7 +296,7 @@ class GameStateNotifier extends StateNotifier<MatchState?> {
       if (!player.isBot) continue;
       if (player.seat.teamNumber != winnerTeam) continue;
 
-      final combos = _findJodiCombos(player.hand, rs.trumpSuit);
+      final combos = _findJodiCombos(player.hand, rs.trumpSuit, rs.callHistory);
       for (final combo in combos) {
         final call = JodiCall(
           caller: player.seat,
@@ -317,23 +320,39 @@ class GameStateNotifier extends StateNotifier<MatchState?> {
     if (localSeat.teamNumber != winnerTeam) return false;
 
     final localPlayer = rs.playerAt(localSeat);
-    return _findJodiCombos(localPlayer.hand, rs.trumpSuit).isNotEmpty;
+    return _findJodiCombos(localPlayer.hand, rs.trumpSuit, rs.callHistory).isNotEmpty;
   }
 
-  /// Finds all valid Jodi combos in a hand
-  static List<List<Card>> findJodiCombos(List<Card> hand, Suit? trumpSuit) {
-    return _findJodiCombosStatic(hand, trumpSuit);
+  /// Finds all valid Jodi combos in a hand, excluding suits already called.
+  static List<List<Card>> findJodiCombos(
+      List<Card> hand, Suit? trumpSuit, [List<CallData>? existingCalls]) {
+    return _findJodiCombosStatic(hand, trumpSuit, existingCalls);
   }
 
-  List<List<Card>> _findJodiCombos(List<Card> hand, Suit? trumpSuit) {
-    return _findJodiCombosStatic(hand, trumpSuit);
+  List<List<Card>> _findJodiCombos(
+      List<Card> hand, Suit? trumpSuit, [List<CallData>? existingCalls]) {
+    return _findJodiCombosStatic(hand, trumpSuit, existingCalls);
   }
 
   static List<List<Card>> _findJodiCombosStatic(
-      List<Card> hand, Suit? trumpSuit) {
+      List<Card> hand, Suit? trumpSuit, [List<CallData>? existingCalls]) {
+    // Collect suits that already have a Jodi call
+    final usedSuits = <Suit>{};
+    if (existingCalls != null) {
+      for (final call in existingCalls) {
+        if (call.category == CallCategory.jodi) {
+          final jodiCall = call as JodiCall;
+          usedSuits.add(jodiCall.cards.first.suit);
+        }
+      }
+    }
+
     final combos = <List<Card>>[];
 
     for (final suit in Suit.values) {
+      // Skip suits that already have a Jodi called
+      if (usedSuits.contains(suit)) continue;
+
       final king = hand.where(
           (c) => c.suit == suit && c.rank == Rank.king).toList();
       final queen = hand.where(
@@ -380,9 +399,13 @@ class GameStateNotifier extends StateNotifier<MatchState?> {
     final currentPlayer = roundState.currentPlayer;
 
     if (currentPlayer.isBot) {
-      // If in the Thunee/Royals call window, wait for it to close first
-      // Force-dismiss after ~5s (10 retries × 500ms) as a safety net
+      // If in the Thunee/Royals call window, let bots try calling first
       if (_isInCallWindow(roundState) && _callWindowWaitCount < 30) {
+        // On first check, give bots a chance to call after a delay
+        if (_callWindowWaitCount == 3) {
+          _tryBotSpecialCalls(roundState);
+          if (_callWindowDismissed) return; // Bot made a call
+        }
         _callWindowWaitCount++;
         Future.delayed(const Duration(milliseconds: 500), () {
           _checkBotTurn(); // Re-check after short delay
@@ -411,6 +434,25 @@ class GameStateNotifier extends StateNotifier<MatchState?> {
         rs.currentTrick != null &&
         rs.currentTrick!.isEmpty &&
         rs.activeThuneeCall == null;
+  }
+
+  /// Lets all bots evaluate whether to call Thunee/Royals.
+  /// Called once when the call window opens (before bots are blocked by _isInCallWindow).
+  void _tryBotSpecialCalls(RoundState rs) {
+    for (final player in rs.players) {
+      if (!player.isBot) continue;
+
+      final decision = _botPolicy.decideSpecialCall(state: rs, bot: player);
+      if (decision is MakeSpecialCallDecision) {
+        final result = _engine.makeSpecialCall(state: rs, call: decision.call);
+        if (result.success && result.newState != null) {
+          _updateRoundState(result.newState!);
+          _callWindowDismissed = true; // Close window — a call was made
+          _checkBotTurn();
+          return;
+        }
+      }
+    }
   }
 
   /// Executes a bot's turn

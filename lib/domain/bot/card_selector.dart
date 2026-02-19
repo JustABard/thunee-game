@@ -86,7 +86,11 @@ class CardSelector {
       if (r != null) return r;
     }
 
-    // Priority 1: counter opponent Thunee
+    // Priority 1a: support teammate's Thunee/Royals — lead weakest
+    final c1a = _tryLeadThuneeSupport(legalCards, state, bot);
+    if (c1a != null) return c1a;
+
+    // Priority 1b: counter opponent Thunee
     final c1 = _tryLeadThuneeCounter(legalCards, state, bot, tracker);
     if (c1 != null) return c1;
 
@@ -124,6 +128,22 @@ class CardSelector {
       return legalCards[_rng.nextInt(legalCards.length)];
     }
     return null;
+  }
+
+  /// Teammate called Thunee/Royals → dump for caller.
+  /// Thunee: lead strongest (dump points). Royals: lead weakest (avoid catching).
+  Card? _tryLeadThuneeSupport(
+    List<Card> legalCards,
+    RoundState state,
+    Player bot,
+  ) {
+    final thuneeCall = state.activeThuneeCall;
+    if (thuneeCall == null) return null;
+    // Only fire if OUR team called (and we're the partner, not the caller)
+    if (thuneeCall.caller.teamNumber != bot.seat.teamNumber) return null;
+    if (thuneeCall.caller == bot.seat) return null; // We ARE the caller
+
+    return _dumpForCaller(legalCards, state);
   }
 
   /// Opponent called Thunee → lead strongest card to try to catch them.
@@ -266,7 +286,11 @@ class CardSelector {
     return null;
   }
 
-  /// Tricks 5/6: play strongest card to maximize winning last hand.
+  /// Tricks 5/6: play to guarantee winning the last trick.
+  ///
+  /// On trick 5 (penultimate): if bot holds the highest remaining trump,
+  /// play a non-trump card now and save trump to guarantee trick 6.
+  /// On trick 6 (last): play strongest card.
   Card? _tryWinLastTrick(
     List<Card> legalCards,
     RoundState state,
@@ -276,6 +300,25 @@ class CardSelector {
     final trickCount = state.completedTricks.length;
     if (trickCount < 4) return null; // Only on tricks 5 and 6
 
+    final trumpSuit = state.trumpSuit;
+
+    // Trick 5 (penultimate): save highest trump for last trick
+    if (trickCount == 4 && trumpSuit != null && bot.hand.length == 2) {
+      final trumpCards = legalCards.where((c) => c.suit == trumpSuit).toList();
+      final nonTrumpCards = legalCards.where((c) => c.suit != trumpSuit).toList();
+
+      if (trumpCards.length == 1 && nonTrumpCards.length == 1) {
+        final myTrump = trumpCards.first;
+        // Check if our trump is the highest remaining trump
+        final highestTrump = tracker.highestRemainingInSuit(trumpSuit);
+        if (highestTrump != null && highestTrump == myTrump) {
+          // We have the guaranteed last-trick winner — play non-trump now
+          return nonTrumpCards.first;
+        }
+      }
+    }
+
+    // Trick 6 or fallback: play strongest card
     return _getStrongestCard(legalCards, state);
   }
 
@@ -341,7 +384,6 @@ class CardSelector {
 
     final callerTeam = thuneeCall.caller.teamNumber;
     final botTeam = bot.seat.teamNumber;
-    final isRoyals = state.isRoyalsMode;
 
     if (callerTeam == botTeam) {
       // Teammate called Thunee/Royals — help them win
@@ -349,11 +391,10 @@ class CardSelector {
         // Bot IS the caller — play strongest to win
         return _getStrongestCard(legalCards, state);
       }
-      // Bot is partner of caller — dump highest value cards for them to win
-      // But for Royals, dump lowest (reversed ranking)
-      return isRoyals
-          ? _getWeakestCard(legalCards, state)
-          : _getStrongestCard(legalCards, state);
+      // Bot is partner of caller.
+      // Thunee: throw strongest (dump points into caller's tricks).
+      // Royals: throw weakest by standard ranking (K, Q — low value, easy to beat).
+      return _dumpForCaller(legalCards, state);
     } else {
       // Opponent called Thunee/Royals — try to catch them
       // Play cards that could win the trick
@@ -515,6 +556,45 @@ class CardSelector {
   // ──────────────────────────────────────────────────────────────────────────
   //  HELPERS
   // ──────────────────────────────────────────────────────────────────────────
+
+  /// Partner support for Thunee/Royals caller.
+  ///
+  /// For BOTH modes: throw the HIGHEST card of whatever suit is chosen
+  /// (using the current ranking mode). This gets dangerous high cards out
+  /// of the partner's hand early while the caller controls the tricks,
+  /// reducing the risk of accidentally catching the caller in later tricks.
+  ///
+  /// Thunee: highest by standard ranking (J, 9, A thrown first).
+  /// Royals: highest by royals ranking (Q, K, 10 thrown first).
+  Card _dumpForCaller(List<Card> legalCards, RoundState state) {
+    final isRoyals = state.isRoyalsMode;
+
+    // Group by suit
+    final bySuit = <Suit, List<Card>>{};
+    for (final card in legalCards) {
+      bySuit.putIfAbsent(card.suit, () => []).add(card);
+    }
+
+    // For each suit, pick the highest-ranked card (most dangerous to hold)
+    final candidates = <Card>[];
+    for (final cards in bySuit.values) {
+      cards.sort((a, b) {
+        final ra = isRoyals ? a.rank.royalsRanking : a.rank.standardRanking;
+        final rb = isRoyals ? b.rank.royalsRanking : b.rank.standardRanking;
+        return ra.compareTo(rb);
+      });
+      candidates.add(cards.last); // Highest of this suit
+    }
+
+    // Pick the overall highest across all suits (most dangerous card)
+    candidates.sort((a, b) {
+      final ra = isRoyals ? a.rank.royalsRanking : a.rank.standardRanking;
+      final rb = isRoyals ? b.rank.royalsRanking : b.rank.standardRanking;
+      return ra.compareTo(rb);
+    });
+
+    return candidates.last;
+  }
 
   List<Card> _getWinningCards(
     List<Card> legalCards,

@@ -7,14 +7,12 @@ import '../../../state/providers/game_state_provider.dart';
 import 'playing_card_widget.dart';
 import 'card_animations.dart';
 
-/// Shuffle animation phase
-enum _ShufflePhase { none, contracting, expanding }
-
 /// Displays a hand of cards in a horizontal row.
 ///
+/// Cards are always displayed in sorted order (grouped by suit).
 /// - On initial deal: cards animate in from below with staggered timing.
-/// - After deal completes (~1100ms), cards sort by suit with a shuffle animation.
-/// - When a card is played: remaining cards stay sorted (no re-entrance anim).
+/// - When a card is played: remaining cards stay sorted, no entrance anim.
+/// - When cards increase (4→6): re-sorted instantly.
 class CardHand extends ConsumerStatefulWidget {
   final List<game_card.Card> cards;
   final bool isVisible;
@@ -34,17 +32,17 @@ class CardHand extends ConsumerStatefulWidget {
 class _CardHandState extends ConsumerState<CardHand>
     with TickerProviderStateMixin {
   bool _isNewDeal = true;
-  _ShufflePhase _shufflePhase = _ShufflePhase.none;
-  List<game_card.Card>? _sortedCards;
-  bool _isSorted = false;
+
+  /// Always-sorted version of the current cards.
+  late List<game_card.Card> _sortedCards;
 
   @override
   void initState() {
     super.initState();
     _isNewDeal = true;
-    // Schedule sort for the initial deal
+    _sortedCards = sortHandBySuit(widget.cards);
     if (widget.cards.isNotEmpty) {
-      _scheduleSortAfterDeal();
+      _scheduleEndDeal();
     }
   }
 
@@ -56,64 +54,33 @@ class _CardHandState extends ConsumerState<CardHand>
     final newLen = widget.cards.length;
 
     if (newLen > oldLen && oldLen <= 1) {
-      // Cards went from 0-1 to many — fresh deal
+      // Fresh deal (0/1 → many)
       _isNewDeal = true;
-      _isSorted = false;
-      _sortedCards = null;
-      _shufflePhase = _ShufflePhase.none;
-      _scheduleSortAfterDeal();
+      _sortedCards = sortHandBySuit(widget.cards);
+      _scheduleEndDeal();
     } else if (newLen > oldLen && oldLen > 1) {
-      // Cards increased mid-round (e.g. 4→6 after trump selection)
-      // Show all cards immediately sorted, with a quick shuffle animation
+      // Mid-round card increase (4→6 after trump selection)
       _isNewDeal = false;
-      _sortedCards = null;
-      _isSorted = false;
-      _shufflePhase = _ShufflePhase.none;
-      _scheduleSortAfterDeal(delay: 300);
+      _sortedCards = sortHandBySuit(widget.cards);
     } else if (newLen < oldLen) {
-      // Card count decreased — card was played, re-sort without animation
+      // Card played — re-sort
       _isNewDeal = false;
-      if (_isSorted) {
-        _sortedCards = sortHandBySuit(widget.cards);
-      }
+      _sortedCards = sortHandBySuit(widget.cards);
     } else if (newLen == oldLen && newLen > 0) {
-      final changed = !_sameCards(oldWidget.cards, widget.cards);
-      if (changed) {
-        // Different cards with same count — new round
+      if (!_sameCards(oldWidget.cards, widget.cards)) {
+        // New round with same card count
         _isNewDeal = true;
-        _isSorted = false;
-        _sortedCards = null;
-        _shufflePhase = _ShufflePhase.none;
-        _scheduleSortAfterDeal();
+        _sortedCards = sortHandBySuit(widget.cards);
+        _scheduleEndDeal();
       }
     }
   }
 
-  void _scheduleSortAfterDeal({int delay = 1200}) {
-    // Wait for deal animation to complete, then trigger shuffle sort
+  void _scheduleEndDeal() {
+    final delay = 100 * widget.cards.length + 600;
     Future.delayed(Duration(milliseconds: delay), () {
       if (!mounted) return;
-      if (widget.cards.isEmpty) return;
-      setState(() {
-        _shufflePhase = _ShufflePhase.contracting;
-      });
-      // Contract phase: 200ms
-      Future.delayed(const Duration(milliseconds: 200), () {
-        if (!mounted) return;
-        setState(() {
-          _sortedCards = sortHandBySuit(widget.cards);
-          _isSorted = true;
-          _shufflePhase = _ShufflePhase.expanding;
-        });
-        // Expand phase: 350ms, then done
-        Future.delayed(const Duration(milliseconds: 350), () {
-          if (!mounted) return;
-          setState(() {
-            _shufflePhase = _ShufflePhase.none;
-            _isNewDeal = false;
-          });
-        });
-      });
+      setState(() => _isNewDeal = false);
     });
   }
 
@@ -124,9 +91,6 @@ class _CardHandState extends ConsumerState<CardHand>
     }
     return true;
   }
-
-  /// The cards to display — sorted if available, otherwise raw.
-  List<game_card.Card> get _displayCards => _sortedCards ?? widget.cards;
 
   @override
   Widget build(BuildContext context) {
@@ -140,143 +104,95 @@ class _CardHandState extends ConsumerState<CardHand>
     final isHumanTurn = ref.watch(isHumanTurnProvider);
     final isChoosingTrump = ref.watch(isChoosingTrumpProvider);
 
-    // Determine shuffle transform values
-    double shuffleScale = 1.0;
-    double shuffleRotation = 0.0;
-    Curve shuffleCurve = Curves.easeOutBack;
-    Duration shuffleDuration = const Duration(milliseconds: 350);
-
-    if (_shufflePhase == _ShufflePhase.contracting) {
-      shuffleScale = 0.75;
-      shuffleRotation = 0.02;
-      shuffleCurve = Curves.easeIn;
-      shuffleDuration = const Duration(milliseconds: 200);
-    } else if (_shufflePhase == _ShufflePhase.expanding) {
-      shuffleScale = 1.0;
-      shuffleRotation = 0.0;
-      shuffleCurve = Curves.easeOutBack;
-      shuffleDuration = const Duration(milliseconds: 350);
-    }
-
-    final displayCards = _displayCards;
+    final displayCards = _sortedCards;
 
     return SizedBox(
       height: ch,
-      child: AnimatedSwitcher(
-        duration: const Duration(milliseconds: 300),
-        switchInCurve: Curves.easeOut,
-        switchOutCurve: Curves.easeIn,
-        layoutBuilder: (currentChild, previousChildren) {
-          return Stack(
-            alignment: Alignment.center,
-            children: [
-              ...previousChildren,
-              ?currentChild,
-            ],
-          );
-        },
-        child: Row(
-          key: ValueKey(widget.cards.length),
-          mainAxisAlignment: MainAxisAlignment.center,
-          mainAxisSize: MainAxisSize.min,
-          children: displayCards.asMap().entries.map((entry) {
-            final index = entry.key;
-            final game_card.Card card = entry.value;
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        mainAxisSize: MainAxisSize.min,
+        children: displayCards.asMap().entries.map((entry) {
+          final index = entry.key;
+          final game_card.Card card = entry.value;
 
-            Widget cardWidget;
+          Widget cardWidget;
 
-            if (isChoosingTrump) {
-              cardWidget = PulseCardWidget(
-                card: card,
-                isLegal: true,
-                width: cw,
-                height: ch,
-                shimmerColor: Colors.green.withValues(alpha: 0.45),
-                onTap: () =>
-                    ref.read(matchStateProvider.notifier).selectTrump(card),
-              );
-            } else if (widget.isVisible && isHumanTurn) {
-              final isLegal = legalCards.contains(card);
-              cardWidget = PulseCardWidget(
-                card: card,
-                isLegal: isLegal,
-                width: cw,
-                height: ch,
-                shimmerColor: Colors.yellow.withValues(alpha: 0.30),
-                onTap: isLegal
-                    ? () =>
-                        ref.read(matchStateProvider.notifier).playCard(card)
-                    : null,
-              );
-            } else {
-              cardWidget = PlayingCardWidget(
-                card: widget.isVisible ? card : null,
-                width: cw,
-                height: ch,
-                isSelected: false,
-              );
-            }
+          if (isChoosingTrump) {
+            cardWidget = PulseCardWidget(
+              card: card,
+              isLegal: true,
+              width: cw,
+              height: ch,
+              shimmerColor: Colors.green.withValues(alpha: 0.45),
+              onTap: () =>
+                  ref.read(matchStateProvider.notifier).selectTrump(card),
+            );
+          } else if (widget.isVisible && isHumanTurn) {
+            final isLegal = legalCards.contains(card);
+            cardWidget = PulseCardWidget(
+              card: card,
+              isLegal: isLegal,
+              width: cw,
+              height: ch,
+              shimmerColor: Colors.yellow.withValues(alpha: 0.30),
+              onTap: isLegal
+                  ? () =>
+                      ref.read(matchStateProvider.notifier).playCard(card)
+                  : null,
+            );
+          } else {
+            cardWidget = PlayingCardWidget(
+              card: widget.isVisible ? card : null,
+              width: cw,
+              height: ch,
+              isSelected: false,
+            );
+          }
 
-            // Wrap in shuffle animation if active
-            if (_shufflePhase != _ShufflePhase.none) {
-              cardWidget = AnimatedScale(
-                scale: shuffleScale,
-                duration: shuffleDuration,
-                curve: shuffleCurve,
-                child: AnimatedRotation(
-                  turns: shuffleRotation,
-                  duration: shuffleDuration,
-                  curve: shuffleCurve,
-                  child: cardWidget,
-                ),
-              );
-            }
-
-            // Only apply entrance animation on new deal
-            if (_isNewDeal && _shufflePhase == _ShufflePhase.none) {
-              final fanAngle = _fanAngle(index, displayCards.length);
-              return Padding(
-                padding: EdgeInsets.only(left: index > 0 ? 4 : 0),
-                child: cardWidget,
-              )
-                  .animate(
-                    key: ValueKey(
-                        'deal-${card.rank.name}-${card.suit.name}-${widget.cards.length}'),
-                  )
-                  .fadeIn(
-                    duration: const Duration(milliseconds: 300),
-                    delay: Duration(milliseconds: 100 * index),
-                  )
-                  .slideY(
-                    begin: 1.6,
-                    end: 0,
-                    duration: const Duration(milliseconds: 500),
-                    delay: Duration(milliseconds: 100 * index),
-                    curve: Curves.easeOutCubic,
-                  )
-                  .scale(
-                    begin: const Offset(0.6, 0.6),
-                    end: const Offset(1.0, 1.0),
-                    duration: const Duration(milliseconds: 450),
-                    delay: Duration(milliseconds: 100 * index),
-                    curve: Curves.easeOutCubic,
-                  )
-                  .rotate(
-                    begin: fanAngle * 0.15,
-                    end: 0,
-                    duration: const Duration(milliseconds: 500),
-                    delay: Duration(milliseconds: 100 * index),
-                    curve: Curves.easeOutCubic,
-                  );
-            }
-
-            // No entrance animation — just show card
+          // Only apply entrance animation on new deal
+          if (_isNewDeal) {
+            final fanAngle = _fanAngle(index, displayCards.length);
             return Padding(
               padding: EdgeInsets.only(left: index > 0 ? 4 : 0),
               child: cardWidget,
-            );
-          }).toList(),
-        ),
+            )
+                .animate(
+                  key: ValueKey(
+                      'deal-${card.rank.name}-${card.suit.name}-${widget.cards.length}'),
+                )
+                .fadeIn(
+                  duration: const Duration(milliseconds: 300),
+                  delay: Duration(milliseconds: 100 * index),
+                )
+                .slideY(
+                  begin: 1.6,
+                  end: 0,
+                  duration: const Duration(milliseconds: 500),
+                  delay: Duration(milliseconds: 100 * index),
+                  curve: Curves.easeOutCubic,
+                )
+                .scale(
+                  begin: const Offset(0.6, 0.6),
+                  end: const Offset(1.0, 1.0),
+                  duration: const Duration(milliseconds: 450),
+                  delay: Duration(milliseconds: 100 * index),
+                  curve: Curves.easeOutCubic,
+                )
+                .rotate(
+                  begin: fanAngle * 0.15,
+                  end: 0,
+                  duration: const Duration(milliseconds: 500),
+                  delay: Duration(milliseconds: 100 * index),
+                  curve: Curves.easeOutCubic,
+                );
+          }
+
+          // No entrance animation — just show card
+          return Padding(
+            padding: EdgeInsets.only(left: index > 0 ? 4 : 0),
+            child: cardWidget,
+          );
+        }).toList(),
       ),
     );
   }

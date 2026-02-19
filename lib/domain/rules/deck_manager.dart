@@ -96,6 +96,26 @@ class DeckManager {
       remaining[i % TOTAL_PLAYERS].add(deck[i]);
     }
 
+    // Safety: verify no duplicates across all hands
+    assert(() {
+      final all = <Card>{};
+      for (final hand in initial) {
+        for (final card in hand) {
+          if (!all.add(card)) {
+            throw StateError('Duplicate card dealt: $card');
+          }
+        }
+      }
+      for (final hand in remaining) {
+        for (final card in hand) {
+          if (!all.add(card)) {
+            throw StateError('Duplicate card in remaining: $card');
+          }
+        }
+      }
+      return true;
+    }());
+
     return (initial: initial, remaining: remaining);
   }
 }

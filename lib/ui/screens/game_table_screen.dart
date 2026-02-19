@@ -164,7 +164,13 @@ class GameTableScreen extends ConsumerWidget {
                       result: roundResult,
                       matchState: matchState,
                       onDismiss: () {
-                        ref.read(matchStateProvider.notifier).dismissRoundResult();
+                        if (matchState.isComplete) {
+                          // Match is over — go back to home
+                          ref.read(matchStateProvider.notifier).dismissRoundResult();
+                          Navigator.of(context).popUntil((route) => route.isFirst);
+                        } else {
+                          ref.read(matchStateProvider.notifier).dismissRoundResult();
+                        }
                       },
                     ),
 
@@ -676,7 +682,7 @@ class _RoundResultOverlay extends StatelessWidget {
                   ],
                 ),
                 const SizedBox(height: 18),
-                if (matchState.isComplete)
+                if (matchState.isComplete) ...[
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
                     decoration: BoxDecoration(
@@ -692,8 +698,20 @@ class _RoundResultOverlay extends StatelessWidget {
                         letterSpacing: 0.4,
                       ),
                     ),
-                  )
-                else
+                  ),
+                  const SizedBox(height: 12),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.home, color: Colors.white38, size: 14),
+                      const SizedBox(width: 4),
+                      Text(
+                        'Tap to return home',
+                        style: TextStyle(color: Colors.grey.shade400, fontSize: 11),
+                      ),
+                    ],
+                  ),
+                ] else
                   Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
