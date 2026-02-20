@@ -280,110 +280,110 @@ class _ThuneeCallPanelState extends ConsumerState<_ThuneeCallPanel>
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
       decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [Colors.purple.shade900, Colors.indigo.shade900],
+        gradient: const LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [Color(0xF0201040), Color(0xF0140A30)],
         ),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.purple.shade600.withValues(alpha: 0.5), width: 1),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.purple.withValues(alpha: 0.3),
-            blurRadius: 16,
-            spreadRadius: 2,
-          ),
-          const BoxShadow(color: Colors.black54, blurRadius: 8),
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(
+          color: const Color(0x60B388FF),
+          width: 1.2,
+        ),
+        boxShadow: const [
+          BoxShadow(color: Color(0x40B388FF), blurRadius: 18, spreadRadius: 1),
+          BoxShadow(color: Color(0x90000000), blurRadius: 10),
         ],
       ),
-      child: Column(
+      child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          // Compact timer bar
-          ClipRRect(
-            borderRadius: BorderRadius.circular(2),
-            child: AnimatedBuilder(
-              animation: _timerController,
-              builder: (context, _) {
-                return LinearProgressIndicator(
-                  value: 1.0 - _timerController.value,
-                  backgroundColor: Colors.white10,
-                  valueColor: AlwaysStoppedAnimation<Color>(
-                    Color.lerp(Colors.purple.shade300, Colors.red.shade400,
-                        _timerController.value)!,
-                  ),
-                  minHeight: 2,
-                );
-              },
-            ),
+          _callBubble(
+            label: 'THUNEE',
+            icon: Icons.flash_on,
+            onTap: () {
+              ref.read(matchStateProvider.notifier).callThunee();
+              _dismiss();
+            },
           ),
-          const SizedBox(height: 6),
-          Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Text(
-                'Special call?',
-                style: TextStyle(
-                  color: Colors.white70,
-                  fontWeight: FontWeight.w600,
-                  fontSize: 12,
-                  letterSpacing: 0.3,
+          const SizedBox(width: 8),
+          _callBubble(
+            label: 'ROYALS',
+            icon: Icons.workspace_premium,
+            onTap: () {
+              ref.read(matchStateProvider.notifier).callRoyals();
+              _dismiss();
+            },
+          ),
+          const SizedBox(width: 8),
+          // X button to skip
+          GestureDetector(
+            onTap: _dismiss,
+            child: Container(
+              width: 28,
+              height: 28,
+              decoration: BoxDecoration(
+                color: const Color(0x40FF5252),
+                shape: BoxShape.circle,
+                border: Border.all(
+                  color: Colors.red.shade400.withValues(alpha: 0.5),
+                  width: 1,
                 ),
               ),
-              const SizedBox(width: 14),
-              _callButton(
-                label: 'THUNEE',
-                icon: Icons.flash_on,
-                color: Colors.purple.shade400,
-                onTap: () {
-                  ref.read(matchStateProvider.notifier).callThunee();
-                  _dismiss();
-                },
-              ),
-              const SizedBox(width: 8),
-              _callButton(
-                label: 'ROYALS',
-                icon: Icons.workspace_premium,
-                color: Colors.indigo.shade400,
-                onTap: () {
-                  ref.read(matchStateProvider.notifier).callRoyals();
-                  _dismiss();
-                },
-              ),
-              const SizedBox(width: 8),
-              TextButton(
-                onPressed: _dismiss,
-                style: TextButton.styleFrom(foregroundColor: Colors.white38),
-                child: const Text('Skip', style: TextStyle(fontSize: 11)),
-              ),
-            ],
+              child: Icon(Icons.close, size: 16, color: Colors.red.shade300),
+            ),
           ),
         ],
       ),
     );
   }
 
-  Widget _callButton({
+  Widget _callBubble({
     required String label,
     required IconData icon,
-    required Color color,
     required VoidCallback onTap,
   }) {
-    return ElevatedButton.icon(
-      onPressed: onTap,
-      icon: Icon(icon, size: 14),
-      label: Text(label,
-          style: const TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.bold,
-              letterSpacing: 0.5)),
-      style: ElevatedButton.styleFrom(
-        backgroundColor: color,
-        foregroundColor: Colors.white,
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-        shape:
-            RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        elevation: 4,
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [
+              Colors.deepPurple.shade300,
+              Colors.deepPurple.shade600,
+            ],
+          ),
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(color: Colors.white24, width: 0.8),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.deepPurple.withValues(alpha: 0.4),
+              blurRadius: 8,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 13, color: Colors.white),
+            const SizedBox(width: 4),
+            Text(
+              label,
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 12,
+                fontWeight: FontWeight.bold,
+                letterSpacing: 0.4,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

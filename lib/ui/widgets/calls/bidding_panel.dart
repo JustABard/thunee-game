@@ -1,13 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter_animate/flutter_animate.dart';
 import '../../../domain/models/round_state.dart';
 import '../../../state/providers/game_state_provider.dart';
 import '../../../state/providers/local_seat_provider.dart';
 import '../../../utils/constants.dart';
 
-/// Panel for bidding during bidding phase.
-/// 10-second countdown timer that resets after each bid. Skip = pass immediately.
+/// Compact floating bidding bubble.
+/// Shows one bid button (next increment) + X to pass/dismiss.
 class BiddingPanel extends ConsumerStatefulWidget {
   final RoundState roundState;
 
@@ -33,7 +32,6 @@ class _BiddingPanelState extends ConsumerState<BiddingPanel>
 
     _timerController.addStatusListener((status) {
       if (status == AnimationStatus.completed && mounted) {
-        // Auto-pass when timer runs out (only if not the highest bidder)
         final rs = widget.roundState;
         final localSeat = ref.read(localSeatProvider);
         final isHighest = rs.highestBid != null && rs.highestBid!.caller == localSeat;
@@ -49,8 +47,6 @@ class _BiddingPanelState extends ConsumerState<BiddingPanel>
   @override
   void didUpdateWidget(BiddingPanel oldWidget) {
     super.didUpdateWidget(oldWidget);
-
-    // Reset timer when bid changes
     final newBidAmount = widget.roundState.highestBid?.amount;
     if (newBidAmount != _lastBidAmount) {
       _lastBidAmount = newBidAmount;
@@ -70,106 +66,120 @@ class _BiddingPanelState extends ConsumerState<BiddingPanel>
     final currentBid = widget.roundState.highestBid?.amount ?? 0;
     final highestBidder = widget.roundState.highestBid?.caller;
     final localSeat = ref.watch(localSeatProvider);
-    // Human is the highest bidder — can't pass on own bid
     final isHighestBidder = highestBidder != null && highestBidder == localSeat;
-
     final nextBid = currentBid + BID_INCREMENT;
 
-    final defaultTrumpSeat = widget.roundState.dealer.next;
-    final defaultTrumpName =
-        widget.roundState.playerAt(defaultTrumpSeat).name;
-
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
       decoration: BoxDecoration(
-        color: const Color(0xEE1A1A2E),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.amber.shade700.withValues(alpha: 0.4), width: 1),
-        boxShadow: [
-          BoxShadow(color: Colors.amber.withValues(alpha: 0.15), blurRadius: 12, spreadRadius: 1),
-          const BoxShadow(color: Colors.black54, blurRadius: 8),
+        gradient: const LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [Color(0xF0201040), Color(0xF0140A30)],
+        ),
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(
+          color: const Color(0x60B388FF),
+          width: 1.2,
+        ),
+        boxShadow: const [
+          BoxShadow(color: Color(0x40B388FF), blurRadius: 18, spreadRadius: 1),
+          BoxShadow(color: Color(0x90000000), blurRadius: 10),
         ],
       ),
-      child: Column(
+      child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          // Compact timer bar
-          ClipRRect(
-            borderRadius: BorderRadius.circular(2),
-            child: AnimatedBuilder(
-              animation: _timerController,
-              builder: (context, _) {
-                return LinearProgressIndicator(
-                  value: 1.0 - _timerController.value,
-                  backgroundColor: Colors.white10,
-                  valueColor: AlwaysStoppedAnimation<Color>(
-                    Color.lerp(Colors.green.shade400, Colors.red.shade400,
-                        _timerController.value)!,
-                  ),
-                  minHeight: 2,
-                );
-              },
-            ),
-          ),
-          const SizedBox(height: 6),
-          Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              // Default trump-maker info
-              Text(
-                'Trump: $defaultTrumpName',
-                style: const TextStyle(color: Colors.white38, fontSize: 10),
+          // Current bid info
+          if (currentBid > 0)
+            Padding(
+              padding: const EdgeInsets.only(right: 10),
+              child: Text(
+                '${highestBidder?.name}: $currentBid',
+                style: const TextStyle(
+                  color: Colors.white60,
+                  fontSize: 10,
+                  fontWeight: FontWeight.w500,
+                ),
               ),
-              const SizedBox(width: 10),
-              if (currentBid > 0) ...[
-                Text(
-                  'Bid: $currentBid (${highestBidder?.name ?? ""})',
-                  style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w600),
-                ),
-                const SizedBox(width: 12),
-              ],
-              // Pass button (disabled when human holds highest bid)
-              ElevatedButton.icon(
-                onPressed: isHighestBidder
-                    ? null
-                    : () => ref.read(matchStateProvider.notifier).passBid(),
-                icon: const Icon(Icons.close, size: 14),
-                label: Text(isHighestBidder ? 'Your bid' : 'Pass',
-                    style: const TextStyle(fontSize: 11)),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.red.shade700,
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                ),
-              )
-                  .animate()
-                  .fadeIn(delay: const Duration(milliseconds: 100))
-                  .scale(begin: const Offset(0.8, 0.8), curve: Curves.easeOutBack),
-              const SizedBox(width: 8),
-              // Bid buttons
-              ...List.generate(3, (index) {
-                final bidAmount = nextBid + (index * BID_INCREMENT);
-                if (bidAmount > 50) return const SizedBox.shrink();
+            ),
 
-                return Padding(
-                  padding: EdgeInsets.only(left: index > 0 ? 6 : 0),
-                  child: ElevatedButton(
-                    onPressed: () => ref
-                        .read(matchStateProvider.notifier)
-                        .makeBid(bidAmount),
-                    style: ElevatedButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          // Single bid button (next increment only)
+          if (nextBid <= 50 && !isHighestBidder)
+            GestureDetector(
+              onTap: () => ref.read(matchStateProvider.notifier).makeBid(nextBid),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [
+                      Colors.deepPurple.shade300,
+                      Colors.deepPurple.shade600,
+                    ],
+                  ),
+                  borderRadius: BorderRadius.circular(18),
+                  border: Border.all(color: Colors.white24, width: 0.8),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.deepPurple.withValues(alpha: 0.4),
+                      blurRadius: 8,
+                      offset: const Offset(0, 2),
                     ),
-                    child: Text('$bidAmount', style: const TextStyle(fontSize: 12)),
-                  )
-                      .animate()
-                      .fadeIn(delay: Duration(milliseconds: 200 + (index * 80)))
-                      .scale(begin: const Offset(0.8, 0.8), curve: Curves.easeOutBack),
-                );
-              }),
-            ],
+                  ],
+                ),
+                child: Text(
+                  'Bid $nextBid',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 13,
+                    fontWeight: FontWeight.bold,
+                    letterSpacing: 0.3,
+                  ),
+                ),
+              ),
+            ),
+
+          if (isHighestBidder)
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 8),
+              child: Text(
+                'Your bid: $currentBid',
+                style: TextStyle(
+                  color: Colors.purple.shade200,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+
+          const SizedBox(width: 8),
+
+          // X button to pass
+          GestureDetector(
+            onTap: isHighestBidder
+                ? null
+                : () => ref.read(matchStateProvider.notifier).passBid(),
+            child: Container(
+              width: 28,
+              height: 28,
+              decoration: BoxDecoration(
+                color: isHighestBidder
+                    ? Colors.white10
+                    : const Color(0x40FF5252),
+                shape: BoxShape.circle,
+                border: Border.all(
+                  color: isHighestBidder ? Colors.white10 : Colors.red.shade400.withValues(alpha: 0.5),
+                  width: 1,
+                ),
+              ),
+              child: Icon(
+                Icons.close,
+                size: 16,
+                color: isHighestBidder ? Colors.white24 : Colors.red.shade300,
+              ),
+            ),
           ),
         ],
       ),

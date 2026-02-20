@@ -84,12 +84,28 @@ class TableLayout extends ConsumerWidget {
         final trickCardH = (centerH * 0.32).clamp(38.0, 68.0);
 
         return Container(
-          decoration: const BoxDecoration(
-            gradient: RadialGradient(
+          decoration: BoxDecoration(
+            // Bird's-eye table: dark wood rim with green felt center
+            gradient: const RadialGradient(
               center: Alignment.center,
-              radius: 1.4,
-              colors: [Color(0xFF1B6B3A), Color(0xFF0D3D1F)],
+              radius: 0.85,
+              colors: [
+                Color(0xFF1A7A3A), // bright felt center
+                Color(0xFF145A2B), // mid felt
+                Color(0xFF0E3E1C), // dark felt edge
+                Color(0xFF2A1A0C), // wood rim
+                Color(0xFF1E1208), // dark wood outer
+              ],
+              stops: [0.0, 0.35, 0.6, 0.75, 1.0],
             ),
+            // Subtle inner shadow for depth
+            boxShadow: [
+              BoxShadow(
+                color: const Color(0xFF000000).withValues(alpha: 0.35),
+                blurRadius: 40,
+                spreadRadius: -10,
+              ),
+            ],
           ),
           child: Stack(
             children: [
