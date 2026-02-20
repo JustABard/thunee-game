@@ -35,65 +35,29 @@ void main() {
   });
 
   group('ScoringEngine - Normal Rounds', () {
-    test('counting team wins with exactly 105 points gets 1 ball', () {
-      // Create tricks totaling 105 points for team 0
-      // Team 0 wins all tricks with total 95 card points + 10 last trick bonus = 105
-      final tricks = [
-        Trick.empty(Seat.south).playCard(Seat.south, Card(suit: Suit.hearts, rank: Rank.jack)) // 30
-            .playCard(Seat.west, Card(suit: Suit.hearts, rank: Rank.queen))
-            .playCard(Seat.north, Card(suit: Suit.hearts, rank: Rank.king))
-            .playCard(Seat.east, Card(suit: Suit.hearts, rank: Rank.ace))
-            .withWinner(Seat.south), // Team 0
-
-        Trick.empty(Seat.south).playCard(Seat.south, Card(suit: Suit.spades, rank: Rank.nine)) // 20
-            .playCard(Seat.west, Card(suit: Suit.spades, rank: Rank.queen))
-            .playCard(Seat.north, Card(suit: Suit.spades, rank: Rank.king))
-            .playCard(Seat.east, Card(suit: Suit.spades, rank: Rank.ace))
-            .withWinner(Seat.south), // Team 0
-
-        Trick.empty(Seat.south).playCard(Seat.south, Card(suit: Suit.clubs, rank: Rank.ace)) // 11
-            .playCard(Seat.west, Card(suit: Suit.clubs, rank: Rank.queen))
-            .playCard(Seat.north, Card(suit: Suit.clubs, rank: Rank.king))
-            .playCard(Seat.east, Card(suit: Suit.clubs, rank: Rank.ten))
-            .withWinner(Seat.south), // Team 0
-
-        Trick.empty(Seat.south).playCard(Seat.south, Card(suit: Suit.diamonds, rank: Rank.ace)) // 11
-            .playCard(Seat.west, Card(suit: Suit.diamonds, rank: Rank.queen))
-            .playCard(Seat.north, Card(suit: Suit.diamonds, rank: Rank.king))
-            .playCard(Seat.east, Card(suit: Suit.diamonds, rank: Rank.ten))
-            .withWinner(Seat.south), // Team 0
-
-        Trick.empty(Seat.south).playCard(Seat.south, Card(suit: Suit.hearts, rank: Rank.ten)) // 10
-            .playCard(Seat.west, Card(suit: Suit.spades, rank: Rank.ten))
-            .playCard(Seat.north, Card(suit: Suit.clubs, rank: Rank.queen))
-            .playCard(Seat.east, Card(suit: Suit.diamonds, rank: Rank.queen))
-            .withWinner(Seat.south), // Team 0
-
-        // Last trick - adds 10 bonus
-        Trick.empty(Seat.south).playCard(Seat.south, Card(suit: Suit.hearts, rank: Rank.nine)) // 20 + 10 bonus = 30
-            .playCard(Seat.west, Card(suit: Suit.spades, rank: Rank.king))
-            .playCard(Seat.north, Card(suit: Suit.clubs, rank: Rank.nine))
-            .playCard(Seat.east, Card(suit: Suit.diamonds, rank: Rank.nine))
-            .withWinner(Seat.south), // Team 0
-      ];
+    test('counting team wins with 105+ points gets 1 ball', () {
+      // Team 0 is counting team (opponents of trump maker team 1)
+      // Use helper to give team 0 exactly 105 points
+      final tricks = _createTricksWithPoints(team0Points: 105, team1Points: 0);
 
       final state = RoundState(
         phase: RoundPhase.scoring,
         players: players,
         teams: teams,
         completedTricks: tricks,
-        trumpMakingTeam: 0, // Team 0 made trump
+        trumpMakingTeam: 1, // Team 1 made trump, so team 0 is counting team
         currentTurn: Seat.south,
       );
 
       final score = engine.calculateRoundScore(state);
 
-      expect(score.team0Points, equals(102)); // 30+20+11+11+10+20 = 102 + 10 last trick = 112, hmm let me recalculate
-      // Actually let me verify the calculation
+      // Counting team (team 0) reached 105 → team 0 gets 1 ball
+      expect(score.team0BallsAwarded, equals(1));
+      expect(score.team1BallsAwarded, equals(0));
     });
 
-    test('counting team with 115 points gets 2 balls (1 + 1 for 10 excess)', () {
-      // Create simpler test - team 0 gets 115 points
+    test('counting team with 115 points still gets 1 ball (no excess-point bonus)', () {
+      // Team 0 is counting team (opponents of trump maker team 1)
       final tricks = _createTricksWithPoints(team0Points: 115, team1Points: 0);
 
       final state = RoundState(
@@ -101,21 +65,24 @@ void main() {
         players: players,
         teams: teams,
         completedTricks: tricks,
-        trumpMakingTeam: 0,
+        trumpMakingTeam: 1, // Team 1 made trump, team 0 is counting
         currentTurn: Seat.south,
       );
 
       final score = engine.calculateRoundScore(state);
 
-      expect(score.team0BallsAwarded, equals(2)); // 1 + (115-105)/10 = 1 + 1 = 2
+      // Standard scoring: counting team reaches threshold → 1 ball
+      expect(score.team0BallsAwarded, equals(1));
       expect(score.team1BallsAwarded, equals(0));
     });
 
-    test('counting team fails to reach 105, opponents get 1 ball (no Call & Loss)', () {
+    test('counting team fails to reach 105, trump maker gets 1 ball (no Call & Loss)', () {
       final engineNoCallLoss = ScoringEngine(
         const GameConfig(enableCallAndLoss: false),
       );
 
+      // Team 0 is counting team (opponents of trump maker team 1)
+      // Team 0 has only 100 pts < 105, counting team fails
       final tricks = _createTricksWithPoints(team0Points: 100, team1Points: 5);
 
       final state = RoundState(
@@ -123,21 +90,23 @@ void main() {
         players: players,
         teams: teams,
         completedTricks: tricks,
-        trumpMakingTeam: 0, // Team 0 made trump but failed
+        trumpMakingTeam: 1, // Team 1 made trump
         currentTurn: Seat.south,
       );
 
       final score = engineNoCallLoss.calculateRoundScore(state);
 
+      // Counting team (team 0) failed → trump maker (team 1) gets 1 ball
       expect(score.team0BallsAwarded, equals(0));
-      expect(score.team1BallsAwarded, equals(1)); // Opponents get 1 ball
+      expect(score.team1BallsAwarded, equals(1));
     });
 
-    test('Call & Loss rule: counting team fails, opponents get 2 balls', () {
+    test('Call & Loss rule: counting team fails, trump maker gets 2 balls', () {
       final engineWithCallLoss = ScoringEngine(
         const GameConfig(enableCallAndLoss: true),
       );
 
+      // Team 0 is counting team (opponents of trump maker team 1)
       final tricks = _createTricksWithPoints(team0Points: 100, team1Points: 5);
 
       final state = RoundState(
@@ -145,14 +114,15 @@ void main() {
         players: players,
         teams: teams,
         completedTricks: tricks,
-        trumpMakingTeam: 0, // Team 0 made trump but failed
+        trumpMakingTeam: 1, // Team 1 made trump
         currentTurn: Seat.south,
       );
 
       final score = engineWithCallLoss.calculateRoundScore(state);
 
+      // Counting team (team 0) failed → trump maker (team 1) gets 2 balls (Call & Loss)
       expect(score.team0BallsAwarded, equals(0));
-      expect(score.team1BallsAwarded, equals(2)); // Call & Loss: +2 balls
+      expect(score.team1BallsAwarded, equals(2));
     });
   });
 
@@ -219,8 +189,8 @@ void main() {
 
       final score = engine.calculateRoundScore(state);
 
-      expect(score.team0BallsAwarded, equals(-4)); // Failure
-      expect(score.team1BallsAwarded, equals(4)); // Actually opponents get +4
+      expect(score.team0BallsAwarded, equals(0)); // Caller team gets 0 (no negative)
+      expect(score.team1BallsAwarded, equals(4)); // Opponents get +4
     });
 
     test('Partner catch: partner wins any trick, opponents get +8 balls', () {

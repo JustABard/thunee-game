@@ -66,7 +66,7 @@ class TableLayout extends ConsumerWidget {
         final h = constraints.maxHeight;
 
         // Row/column fractions — sized conservatively so nothing overflows
-        const northFrac = 0.18;
+        const northFrac = 0.16;
         const southFrac = 0.26;
         const sideFrac  = 0.10; // fraction of width for each side column
 
@@ -185,20 +185,17 @@ class TableLayout extends ConsumerWidget {
                 ],
               ),
 
-              // Trump indicator — only revealed after the first card is played
+              // Trump indicator — positioned at center-top of trick area, below north
               if (roundState.trumpSuit != null &&
                   (roundState.currentTrick != null && !roundState.currentTrick!.isEmpty ||
                    roundState.completedTricks.isNotEmpty))
                 Positioned(
-                  top: northH + 4,
-                  left: sideW,
-                  right: sideW,
-                  child: Center(
-                    child: TrumpIndicator(
-                      trumpSuit: roundState.trumpSuit,
-                      trumpCard: roundState.trumpCard,
-                      trumpMakingTeam: roundState.trumpMakingTeam,
-                    ),
+                  top: northH + centerH * 0.02,
+                  right: sideW + 4,
+                  child: TrumpIndicator(
+                    trumpSuit: roundState.trumpSuit,
+                    trumpCard: roundState.trumpCard,
+                    trumpMakingTeam: roundState.trumpMakingTeam,
                   ),
                 ),
             ],

@@ -408,9 +408,10 @@ void main() {
     });
 
     test('getCurrentWinningSeat returns correct seat', () {
+      // Use proper turn order: South → East → North → West
       final trick = Trick.empty(Seat.south)
           .playCard(Seat.south, Card(suit: Suit.hearts, rank: Rank.nine))
-          .playCard(Seat.west, Card(suit: Suit.hearts, rank: Rank.jack))
+          .playCard(Seat.east, Card(suit: Suit.hearts, rank: Rank.jack))
           .playCard(Seat.north, Card(suit: Suit.hearts, rank: Rank.ace));
 
       final winningSeat = resolver.getCurrentWinningSeat(
@@ -418,7 +419,7 @@ void main() {
         trumpSuit: Suit.hearts,
       );
 
-      expect(winningSeat, equals(Seat.west)); // Jack > 9 > Ace
+      expect(winningSeat, equals(Seat.east)); // Jack > 9 > Ace
     });
   });
 }

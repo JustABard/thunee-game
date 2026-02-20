@@ -90,22 +90,35 @@ class GameTableScreen extends ConsumerWidget {
             ? const Center(child: CircularProgressIndicator())
             : Stack(
                 children: [
-                  // ── Main layout: table + optional panels ─────────────
-                  Column(
-                    children: [
-                      Expanded(
-                        child: TableLayout(roundState: roundState),
+                  // ── Main layout: table fills entire screen ────────────
+                  TableLayout(roundState: roundState),
+
+                  // ── Floating call/bid panels above south player's cards ─
+                  // Position panels just above the south zone (26% from bottom)
+                  if (roundState.phase == RoundPhase.bidding)
+                    const Positioned.fill(
+                      child: _FloatingPanelPositioner(
+                        child: _BiddingPanelWrapper(),
                       ),
-                      if (roundState.phase == RoundPhase.bidding)
-                        BiddingPanel(roundState: roundState),
-                      if (roundState.phase == RoundPhase.choosingTrump)
-                        _TrumpChoiceBanner(isBotChoosing: isBotTurn),
-                      if (canCallThunee)
-                        _ThuneeCallPanel(),
-                      if (jodiWindowOpen && jodiCombos.isNotEmpty)
-                        _JodiCallPanel(combos: jodiCombos),
-                    ],
-                  ),
+                    ),
+                  if (roundState.phase == RoundPhase.choosingTrump)
+                    Positioned.fill(
+                      child: _FloatingPanelPositioner(
+                        child: _TrumpChoiceBanner(isBotChoosing: isBotTurn),
+                      ),
+                    ),
+                  if (canCallThunee)
+                    const Positioned.fill(
+                      child: _FloatingPanelPositioner(
+                        child: _ThuneeCallPanel(),
+                      ),
+                    ),
+                  if (jodiWindowOpen && jodiCombos.isNotEmpty)
+                    Positioned.fill(
+                      child: _FloatingPanelPositioner(
+                        child: _JodiCallPanel(combos: jodiCombos),
+                      ),
+                    ),
 
                   // ── Card-based score display (top-right corner) ──────
                   Positioned(
@@ -190,6 +203,40 @@ class GameTableScreen extends ConsumerWidget {
   }
 }
 
+/// Positions a floating panel just above the south zone (26% from bottom).
+class _FloatingPanelPositioner extends StatelessWidget {
+  final Widget child;
+  const _FloatingPanelPositioner({required this.child});
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final southH = constraints.maxHeight * 0.26;
+        return Align(
+          alignment: Alignment.bottomCenter,
+          child: Padding(
+            padding: EdgeInsets.only(bottom: southH + 4, left: 20, right: 20),
+            child: child,
+          ),
+        );
+      },
+    );
+  }
+}
+
+/// Wrapper that passes roundState to BiddingPanel from provider.
+class _BiddingPanelWrapper extends ConsumerWidget {
+  const _BiddingPanelWrapper();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final roundState = ref.watch(roundStateProvider);
+    if (roundState == null) return const SizedBox.shrink();
+    return BiddingPanel(roundState: roundState);
+  }
+}
+
 /// Panel for calling Thunee or Royals before the first trick.
 /// 15-second countdown with progress bar. Skip ends immediately.
 class _ThuneeCallPanel extends ConsumerStatefulWidget {
@@ -232,40 +279,47 @@ class _ThuneeCallPanelState extends ConsumerState<_ThuneeCallPanel>
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        // Progress bar
-        AnimatedBuilder(
-          animation: _timerController,
-          builder: (context, _) {
-            return LinearProgressIndicator(
-              value: 1.0 - _timerController.value,
-              backgroundColor: Colors.purple.shade900,
-              valueColor: AlwaysStoppedAnimation<Color>(
-                Color.lerp(Colors.purple.shade300, Colors.red.shade400,
-                    _timerController.value)!,
-              ),
-              minHeight: 3,
-            );
-          },
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [Colors.purple.shade900, Colors.indigo.shade900],
         ),
-        Container(
-          width: double.infinity,
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              colors: [Colors.purple.shade900, Colors.indigo.shade900],
-            ),
-            boxShadow: const [
-              BoxShadow(
-                  color: Colors.black45,
-                  blurRadius: 10,
-                  offset: Offset(0, -2))
-            ],
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.purple.shade600.withValues(alpha: 0.5), width: 1),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.purple.withValues(alpha: 0.3),
+            blurRadius: 16,
+            spreadRadius: 2,
           ),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
+          const BoxShadow(color: Colors.black54, blurRadius: 8),
+        ],
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // Compact timer bar
+          ClipRRect(
+            borderRadius: BorderRadius.circular(2),
+            child: AnimatedBuilder(
+              animation: _timerController,
+              builder: (context, _) {
+                return LinearProgressIndicator(
+                  value: 1.0 - _timerController.value,
+                  backgroundColor: Colors.white10,
+                  valueColor: AlwaysStoppedAnimation<Color>(
+                    Color.lerp(Colors.purple.shade300, Colors.red.shade400,
+                        _timerController.value)!,
+                  ),
+                  minHeight: 2,
+                );
+              },
+            ),
+          ),
+          const SizedBox(height: 6),
+          Row(
+            mainAxisSize: MainAxisSize.min,
             children: [
               const Text(
                 'Special call?',
@@ -299,14 +353,13 @@ class _ThuneeCallPanelState extends ConsumerState<_ThuneeCallPanel>
               const SizedBox(width: 8),
               TextButton(
                 onPressed: _dismiss,
-                style:
-                    TextButton.styleFrom(foregroundColor: Colors.white38),
+                style: TextButton.styleFrom(foregroundColor: Colors.white38),
                 child: const Text('Skip', style: TextStyle(fontSize: 11)),
               ),
             ],
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 
@@ -345,15 +398,20 @@ class _TrumpChoiceBanner extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      width: double.infinity,
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       decoration: BoxDecoration(
         gradient: LinearGradient(
           colors: [Colors.green.shade800, Colors.teal.shade800],
         ),
-        boxShadow: const [BoxShadow(color: Colors.black38, blurRadius: 8, offset: Offset(0, -2))],
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.green.shade500.withValues(alpha: 0.4), width: 1),
+        boxShadow: [
+          BoxShadow(color: Colors.green.withValues(alpha: 0.25), blurRadius: 12, spreadRadius: 1),
+          const BoxShadow(color: Colors.black54, blurRadius: 8),
+        ],
       ),
       child: Row(
+        mainAxisSize: MainAxisSize.min,
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           Icon(
@@ -365,7 +423,7 @@ class _TrumpChoiceBanner extends StatelessWidget {
           Text(
             isBotChoosing
                 ? 'Opponent is choosing trump…'
-                : 'Tap any card in your hand to set trump',
+                : 'Tap any card to set trump',
             style: const TextStyle(
               color: Colors.white,
               fontSize: 12,
@@ -542,15 +600,20 @@ class _JodiCallPanel extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     return Container(
-      width: double.infinity,
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       decoration: BoxDecoration(
         gradient: LinearGradient(
           colors: [Colors.teal.shade900, Colors.green.shade900],
         ),
-        boxShadow: const [BoxShadow(color: Colors.black45, blurRadius: 10, offset: Offset(0, -2))],
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.teal.shade500.withValues(alpha: 0.4), width: 1),
+        boxShadow: [
+          BoxShadow(color: Colors.teal.withValues(alpha: 0.25), blurRadius: 12, spreadRadius: 1),
+          const BoxShadow(color: Colors.black54, blurRadius: 8),
+        ],
       ),
       child: Row(
+        mainAxisSize: MainAxisSize.min,
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           const Text(
