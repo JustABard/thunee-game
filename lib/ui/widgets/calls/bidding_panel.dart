@@ -75,15 +75,15 @@ class _BiddingPanelState extends ConsumerState<BiddingPanel>
         gradient: const LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [Color(0xF0201040), Color(0xF0140A30)],
+          colors: [Color(0xF0102040), Color(0xF00A1830)],
         ),
         borderRadius: BorderRadius.circular(24),
         border: Border.all(
-          color: const Color(0x60B388FF),
+          color: const Color(0x5064B5F6),
           width: 1.2,
         ),
         boxShadow: const [
-          BoxShadow(color: Color(0x40B388FF), blurRadius: 18, spreadRadius: 1),
+          BoxShadow(color: Color(0x3064B5F6), blurRadius: 18, spreadRadius: 1),
           BoxShadow(color: Color(0x90000000), blurRadius: 10),
         ],
       ),
@@ -115,15 +115,15 @@ class _BiddingPanelState extends ConsumerState<BiddingPanel>
                     begin: Alignment.topCenter,
                     end: Alignment.bottomCenter,
                     colors: [
-                      Colors.deepPurple.shade300,
-                      Colors.deepPurple.shade600,
+                      Colors.blue.shade400,
+                      Colors.blue.shade700,
                     ],
                   ),
                   borderRadius: BorderRadius.circular(18),
                   border: Border.all(color: Colors.white24, width: 0.8),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.deepPurple.withValues(alpha: 0.4),
+                      color: Colors.blue.withValues(alpha: 0.4),
                       blurRadius: 8,
                       offset: const Offset(0, 2),
                     ),
@@ -147,7 +147,7 @@ class _BiddingPanelState extends ConsumerState<BiddingPanel>
               child: Text(
                 'Your bid: $currentBid',
                 style: TextStyle(
-                  color: Colors.purple.shade200,
+                  color: Colors.blue.shade200,
                   fontSize: 12,
                   fontWeight: FontWeight.w600,
                 ),

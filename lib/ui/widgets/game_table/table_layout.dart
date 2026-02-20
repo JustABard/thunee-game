@@ -83,31 +83,16 @@ class TableLayout extends ConsumerWidget {
         final sideCardH  = (centerH * 0.20).clamp(24.0, 42.0);
         final trickCardH = (centerH * 0.32).clamp(38.0, 68.0);
 
-        return Container(
-          decoration: BoxDecoration(
-            // Bird's-eye table: dark wood rim with green felt center
-            gradient: const RadialGradient(
-              center: Alignment.center,
-              radius: 0.85,
-              colors: [
-                Color(0xFF1A7A3A), // bright felt center
-                Color(0xFF145A2B), // mid felt
-                Color(0xFF0E3E1C), // dark felt edge
-                Color(0xFF2A1A0C), // wood rim
-                Color(0xFF1E1208), // dark wood outer
-              ],
-              stops: [0.0, 0.35, 0.6, 0.75, 1.0],
-            ),
-            // Subtle inner shadow for depth
-            boxShadow: [
-              BoxShadow(
-                color: const Color(0xFF000000).withValues(alpha: 0.35),
-                blurRadius: 40,
-                spreadRadius: -10,
+        return Stack(
+          children: [
+            // Background: perspective table painted via CustomPaint
+            Positioned.fill(
+              child: CustomPaint(
+                painter: _PerspectiveTablePainter(),
               ),
-            ],
-          ),
-          child: Stack(
+            ),
+            // Game content layered on top
+            Stack(
             children: [
               Column(
                 children: [
@@ -216,10 +201,127 @@ class TableLayout extends ConsumerWidget {
                 ),
             ],
           ),
+          ],
         );
       },
     );
   }
+}
+
+/// Draws a perspective table surface: dark room background, wood rim trapezoid,
+/// green felt inner with a subtle light hotspot — like viewing from a high angle.
+class _PerspectiveTablePainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    final w = size.width;
+    final h = size.height;
+
+    // Dark room background
+    canvas.drawRect(
+      Rect.fromLTWH(0, 0, w, h),
+      Paint()..color = const Color(0xFF0A0A0E),
+    );
+
+    // Outer wood rim — trapezoid (wider at bottom, narrower at top)
+    final rimInsetTop = w * 0.18;    // narrower at top
+    final rimInsetBottom = w * 0.04; // wider at bottom
+    final rimTop = h * 0.06;
+    final rimBottom = h * 0.96;
+
+    final rimPath = Path()
+      ..moveTo(rimInsetBottom, rimBottom)
+      ..lineTo(w - rimInsetBottom, rimBottom)
+      ..lineTo(w - rimInsetTop, rimTop)
+      ..lineTo(rimInsetTop, rimTop)
+      ..close();
+
+    // Wood gradient — warm brown with grain-like variation
+    final woodPaint = Paint()
+      ..shader = LinearGradient(
+        begin: Alignment.topCenter,
+        end: Alignment.bottomCenter,
+        colors: const [
+          Color(0xFF3D2510), // dark wood top
+          Color(0xFF5C3A1E), // mid wood
+          Color(0xFF6B4226), // warm wood bottom
+          Color(0xFF4A2E14), // slightly darker base
+        ],
+        stops: const [0.0, 0.3, 0.7, 1.0],
+      ).createShader(Rect.fromLTWH(0, rimTop, w, rimBottom - rimTop));
+
+    canvas.drawPath(rimPath, woodPaint);
+
+    // Inner felt surface — slightly inset trapezoid
+    final feltMargin = 12.0;
+    final feltInsetTop = rimInsetTop + feltMargin * 1.5;
+    final feltInsetBottom = rimInsetBottom + feltMargin;
+    final feltTop = rimTop + feltMargin * 0.8;
+    final feltBottom = rimBottom - feltMargin * 0.6;
+
+    final feltPath = Path()
+      ..moveTo(feltInsetBottom, feltBottom)
+      ..lineTo(w - feltInsetBottom, feltBottom)
+      ..lineTo(w - feltInsetTop, feltTop)
+      ..lineTo(feltInsetTop, feltTop)
+      ..close();
+
+    // Green felt gradient — lighter center, darker edges
+    final feltPaint = Paint()
+      ..shader = RadialGradient(
+        center: const Alignment(0, 0.15), // light slightly toward viewer
+        radius: 0.9,
+        colors: const [
+          Color(0xFF1E8C42), // bright center
+          Color(0xFF166E34), // mid
+          Color(0xFF0F5526), // edge
+          Color(0xFF0B3E1C), // dark corners
+        ],
+        stops: const [0.0, 0.3, 0.65, 1.0],
+      ).createShader(Rect.fromLTWH(0, 0, w, h));
+
+    canvas.drawPath(feltPath, feltPaint);
+
+    // Subtle felt edge shadow (inner rim)
+    final edgeShadow = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 3.0
+      ..shader = LinearGradient(
+        begin: Alignment.topCenter,
+        end: Alignment.bottomCenter,
+        colors: const [
+          Color(0x50000000),
+          Color(0x18000000),
+        ],
+      ).createShader(Rect.fromLTWH(0, 0, w, h));
+    canvas.drawPath(feltPath, edgeShadow);
+
+    // Light hotspot on felt (overhead light reflection)
+    final hotspotPaint = Paint()
+      ..shader = RadialGradient(
+        center: const Alignment(0.05, -0.1),
+        radius: 0.45,
+        colors: const [
+          Color(0x18FFFFFF),
+          Color(0x00FFFFFF),
+        ],
+      ).createShader(Rect.fromLTWH(0, 0, w, h));
+    canvas.drawPath(feltPath, hotspotPaint);
+
+    // Wood rim highlight — top edge reflection
+    final highlightPath = Path()
+      ..moveTo(rimInsetTop + 2, rimTop + 1)
+      ..lineTo(w - rimInsetTop - 2, rimTop + 1)
+      ..lineTo(w - rimInsetTop - 6, rimTop + 4)
+      ..lineTo(rimInsetTop + 6, rimTop + 4)
+      ..close();
+    canvas.drawPath(
+      highlightPath,
+      Paint()..color = const Color(0x30FFFFFF),
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
 
 // ── Horizontal player (North / South) ──────────────────────────────────────
