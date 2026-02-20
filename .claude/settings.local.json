@@ -12,7 +12,10 @@
       "Bash(git fetch:*)",
       "Bash(git stash:*)",
       "Bash(git pull:*)",
-      "Bash(flutter build:*)"
+      "Bash(flutter build:*)",
+      "Bash(findstr:*)",
+      "Bash(dart analyze:*)",
+      "Bash(git status:*)"
     ]
   }
 }
