@@ -4,6 +4,20 @@ import '../../domain/models/game_config.dart';
 import '../../domain/models/lobby.dart';
 import '../../domain/models/player.dart';
 
+/// Recursively converts a Firebase value (Map<Object?,Object?> / List) into
+/// plain Dart types so fromJson methods receive Map<String,dynamic>.
+dynamic _deepCast(Object? value) {
+  if (value is Map) {
+    return Map<String, dynamic>.fromEntries(
+      value.entries.map((e) => MapEntry(e.key as String, _deepCast(e.value))),
+    );
+  }
+  if (value is List) {
+    return value.map(_deepCast).toList();
+  }
+  return value;
+}
+
 /// Service for creating, joining, and managing multiplayer lobbies via Firebase RTDB.
 class FirebaseLobbyService {
   final DatabaseReference _db = FirebaseDatabase.instance.ref();
@@ -70,7 +84,7 @@ class FirebaseLobbyService {
     }
 
     final lobby = Lobby.fromJson(
-        Map<String, dynamic>.from(snapshot.value as Map));
+        _deepCast(snapshot.value) as Map<String, dynamic>);
 
     if (lobby.status != LobbyStatus.waiting) {
       throw Exception('Game already in progress');
@@ -101,7 +115,7 @@ class FirebaseLobbyService {
     // Return updated lobby
     final updatedSnapshot = await lobbyRef.get();
     return Lobby.fromJson(
-        Map<String, dynamic>.from(updatedSnapshot.value as Map));
+        _deepCast(updatedSnapshot.value) as Map<String, dynamic>);
   }
 
   /// Removes a player from the lobby (clears their seat).
@@ -115,7 +129,7 @@ class FirebaseLobbyService {
     if (!snapshot.exists) return;
 
     final lobby = Lobby.fromJson(
-        Map<String, dynamic>.from(snapshot.value as Map));
+        _deepCast(snapshot.value) as Map<String, dynamic>);
 
     for (final entry in lobby.seats.entries) {
       if (entry.value?.id == playerId) {
@@ -132,7 +146,7 @@ class FirebaseLobbyService {
         throw Exception('Lobby deleted');
       }
       return Lobby.fromJson(
-          Map<String, dynamic>.from(event.snapshot.value as Map));
+          _deepCast(event.snapshot.value) as Map<String, dynamic>);
     });
   }
 

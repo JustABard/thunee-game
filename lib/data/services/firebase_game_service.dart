@@ -5,6 +5,20 @@ import '../../domain/models/match_state.dart';
 import '../../domain/models/player.dart';
 import '../../domain/serialization/state_serializer.dart';
 
+/// Recursively converts a Firebase value (Map<Object?,Object?> / List) into
+/// plain Dart types so fromJson methods receive Map<String,dynamic>.
+dynamic _deepCast(Object? value) {
+  if (value is Map) {
+    return Map<String, dynamic>.fromEntries(
+      value.entries.map((e) => MapEntry(e.key as String, _deepCast(e.value))),
+    );
+  }
+  if (value is List) {
+    return value.map(_deepCast).toList();
+  }
+  return value;
+}
+
 /// Service for syncing game state and actions via Firebase RTDB.
 class FirebaseGameService {
   final DatabaseReference _db = FirebaseDatabase.instance.ref();
@@ -36,8 +50,7 @@ class FirebaseGameService {
         throw Exception('No game state');
       }
 
-      final stateJson = Map<String, dynamic>.from(
-          stateEvent.snapshot.value as Map);
+      final stateJson = _deepCast(stateEvent.snapshot.value) as Map<String, dynamic>;
       final redactedState = MatchState.fromJson(stateJson);
 
       // Read own hand
@@ -69,7 +82,7 @@ class FirebaseGameService {
 
     return actionsRef.onChildAdded.map((event) {
       final key = event.snapshot.key!;
-      final json = Map<String, dynamic>.from(event.snapshot.value as Map);
+      final json = _deepCast(event.snapshot.value) as Map<String, dynamic>;
       return MapEntry(key, GameAction.fromJson(json));
     });
   }
