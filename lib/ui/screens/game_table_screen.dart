@@ -6,6 +6,7 @@ import '../../domain/models/card.dart' as game_card;
 import '../../domain/models/match_state.dart';
 import '../../domain/models/round_state.dart';
 import '../../state/providers/game_state_provider.dart';
+import '../../state/providers/lobby_provider.dart';
 import '../../state/providers/ui_state_provider.dart';
 import '../widgets/game_table/table_layout.dart';
 import '../widgets/calls/bidding_panel.dart';
@@ -18,7 +19,8 @@ class GameTableScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final matchState    = ref.watch(matchStateProvider);
+    final gameMode      = ref.watch(gameModeProvider);
+    final matchState    = ref.watch(activeMatchStateProvider);
     final roundState    = ref.watch(roundStateProvider);
     final needsHandover = ref.watch(needsHandoverProvider);
     final nextPlayerName = ref.watch(nextPlayerNameProvider);
@@ -39,8 +41,34 @@ class GameTableScreen extends ConsumerWidget {
       }
     });
 
-    // Show handover when human player's turn starts in 2-player mode
-    if (matchState != null && roundState != null) {
+    // Show snackbar when a player disconnects in online mode
+    ref.listen(multiplayerDisconnectStreamProvider, (_, next) {
+      if (next.hasValue && context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(next.value!),
+            backgroundColor: Colors.orange.shade800,
+            duration: const Duration(seconds: 4),
+          ),
+        );
+      }
+    });
+
+    // Show snackbar on Firebase errors in online mode
+    ref.listen(multiplayerErrorStreamProvider, (_, next) {
+      if (next.hasValue && context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(next.value!),
+            backgroundColor: Colors.red.shade800,
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      }
+    });
+
+    // Show handover when human player's turn starts in 2-player pass-and-play mode
+    if (gameMode != GameMode.online && matchState != null && roundState != null) {
       final humanPlayers = matchState.players.where((p) => !p.isBot).toList();
       final currentPlayer = roundState.currentPlayer;
 
@@ -177,12 +205,10 @@ class GameTableScreen extends ConsumerWidget {
                       result: roundResult,
                       matchState: matchState,
                       onDismiss: () {
+                        ref.read(gameActionsProvider).dismissRoundResult();
                         if (matchState.isComplete) {
                           // Match is over — go back to home
-                          ref.read(matchStateProvider.notifier).dismissRoundResult();
                           Navigator.of(context).popUntil((route) => route.isFirst);
-                        } else {
-                          ref.read(matchStateProvider.notifier).dismissRoundResult();
                         }
                       },
                     ),
@@ -274,7 +300,7 @@ class _ThuneeCallPanelState extends ConsumerState<_ThuneeCallPanel>
 
   void _dismiss() {
     ref.read(thuneePromptDismissedProvider.notifier).state = true;
-    ref.read(matchStateProvider.notifier).dismissCallWindow();
+    ref.read(gameActionsProvider).dismissCallWindow();
   }
 
   @override
@@ -304,7 +330,7 @@ class _ThuneeCallPanelState extends ConsumerState<_ThuneeCallPanel>
             label: 'THUNEE',
             icon: Icons.flash_on,
             onTap: () {
-              ref.read(matchStateProvider.notifier).callThunee();
+              ref.read(gameActionsProvider).callThunee();
               _dismiss();
             },
           ),
@@ -313,7 +339,7 @@ class _ThuneeCallPanelState extends ConsumerState<_ThuneeCallPanel>
             label: 'ROYALS',
             icon: Icons.workspace_premium,
             onTap: () {
-              ref.read(matchStateProvider.notifier).callRoyals();
+              ref.read(gameActionsProvider).callRoyals();
               _dismiss();
             },
           ),
@@ -634,8 +660,8 @@ class _JodiCallPanel extends ConsumerWidget {
               padding: const EdgeInsets.only(right: 8),
               child: ElevatedButton(
                 onPressed: () {
-                  ref.read(matchStateProvider.notifier).callJodi(combo);
-                  ref.read(matchStateProvider.notifier).dismissJodiWindow();
+                  ref.read(gameActionsProvider).callJodi(combo);
+                  ref.read(gameActionsProvider).dismissJodiWindow();
                 },
                 style: ElevatedButton.styleFrom(
                   backgroundColor: isTrump ? Colors.amber.shade600 : Colors.teal.shade500,
@@ -652,7 +678,7 @@ class _JodiCallPanel extends ConsumerWidget {
             );
           }),
           TextButton(
-            onPressed: () => ref.read(matchStateProvider.notifier).dismissJodiWindow(),
+            onPressed: () => ref.read(gameActionsProvider).dismissJodiWindow(),
             style: TextButton.styleFrom(foregroundColor: Colors.white38),
             child: const Text('Skip', style: TextStyle(fontSize: 11)),
           ),

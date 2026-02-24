@@ -124,8 +124,7 @@ class _CardHandState extends ConsumerState<CardHand>
               width: cw,
               height: ch,
               shimmerColor: Colors.green.withValues(alpha: 0.45),
-              onTap: () =>
-                  ref.read(matchStateProvider.notifier).selectTrump(card),
+              onTap: () => ref.read(gameActionsProvider).selectTrump(card),
             );
           } else if (widget.isVisible && isHumanTurn) {
             final isLegal = legalCards.contains(card);
@@ -136,8 +135,7 @@ class _CardHandState extends ConsumerState<CardHand>
               height: ch,
               shimmerColor: Colors.yellow.withValues(alpha: 0.30),
               onTap: isLegal
-                  ? () =>
-                      ref.read(matchStateProvider.notifier).playCard(card)
+                  ? () => ref.read(gameActionsProvider).playCard(card)
                   : null,
             );
           } else {

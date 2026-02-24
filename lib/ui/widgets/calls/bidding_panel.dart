@@ -36,7 +36,7 @@ class _BiddingPanelState extends ConsumerState<BiddingPanel>
         final localSeat = ref.read(localSeatProvider);
         final isHighest = rs.highestBid != null && rs.highestBid!.caller == localSeat;
         if (!isHighest) {
-          ref.read(matchStateProvider.notifier).passBid();
+          ref.read(gameActionsProvider).passBid();
         }
       }
     });
@@ -107,7 +107,7 @@ class _BiddingPanelState extends ConsumerState<BiddingPanel>
           // Single bid button (next increment only)
           if (nextBid <= 50 && !isHighestBidder)
             GestureDetector(
-              onTap: () => ref.read(matchStateProvider.notifier).makeBid(nextBid),
+              onTap: () => ref.read(gameActionsProvider).makeBid(nextBid),
               child: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
                 decoration: BoxDecoration(
@@ -160,7 +160,7 @@ class _BiddingPanelState extends ConsumerState<BiddingPanel>
           GestureDetector(
             onTap: isHighestBidder
                 ? null
-                : () => ref.read(matchStateProvider.notifier).passBid(),
+                : () => ref.read(gameActionsProvider).passBid(),
             child: Container(
               width: 28,
               height: 28,

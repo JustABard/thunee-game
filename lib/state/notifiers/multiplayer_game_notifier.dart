@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:developer' as dev;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../data/services/firebase_game_service.dart';
 import '../../data/services/firebase_lobby_service.dart';
@@ -34,6 +35,15 @@ class MultiplayerGameNotifier extends StateNotifier<MatchState?> {
   StreamSubscription? _stateSubscription;
   StreamSubscription? _heartbeatSubscription;
   Timer? _heartbeatTimer;
+
+  final _errorController = StreamController<String>.broadcast();
+  final _disconnectController = StreamController<String>.broadcast();
+
+  /// Stream of error messages (Firebase failures, sync errors, etc.)
+  Stream<String> get errors => _errorController.stream;
+
+  /// Stream of player disconnect notifications.
+  Stream<String> get disconnections => _disconnectController.stream;
 
   String? _lastRoundResult;
 
@@ -535,12 +545,20 @@ class MultiplayerGameNotifier extends StateNotifier<MatchState?> {
         playerId: _playerId,
         timestamp: DateTime.now().millisecondsSinceEpoch,
       ),
-    );
+    ).catchError((Object e) {
+      dev.log('Action submit error: $e', name: 'MultiplayerGameNotifier');
+      _errorController.add('Failed to send action — check connection');
+    });
   }
 
   Future<void> _syncToFirebase() async {
     if (state == null || !_isHost) return;
-    await _gameService.syncGameState(_lobbyCode, state!);
+    try {
+      await _gameService.syncGameState(_lobbyCode, state!);
+    } catch (e) {
+      dev.log('Firebase sync error: $e', name: 'MultiplayerGameNotifier');
+      _errorController.add('Connection error — retrying sync');
+    }
   }
 
   void _listenForActions() {
@@ -577,7 +595,8 @@ class MultiplayerGameNotifier extends StateNotifier<MatchState?> {
 
       final lastBeat = heartbeats[player.seat] ?? 0;
       if (now - lastBeat > 15000) {
-        // Player disconnected — mark as bot
+        // Player disconnected — mark as bot and notify
+        _disconnectController.add('${player.name} disconnected (replaced by bot)');
         final updatedPlayer = player.copyWith(isBot: true);
         final updatedPlayers = round.players
             .map((p) => p.seat == player.seat ? updatedPlayer : p)
@@ -595,6 +614,8 @@ class MultiplayerGameNotifier extends StateNotifier<MatchState?> {
     _stateSubscription?.cancel();
     _heartbeatSubscription?.cancel();
     _heartbeatTimer?.cancel();
+    _errorController.close();
+    _disconnectController.close();
     super.dispose();
   }
 }
