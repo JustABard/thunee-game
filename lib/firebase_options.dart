@@ -2,10 +2,6 @@ import 'package:firebase_core/firebase_core.dart' show FirebaseOptions;
 import 'package:flutter/foundation.dart'
     show defaultTargetPlatform, TargetPlatform;
 
-/// Placeholder Firebase options.
-///
-/// Replace with actual values from `flutterfire configure` or the Firebase console.
-/// Run: `flutterfire configure` to auto-generate this file.
 class DefaultFirebaseOptions {
   static FirebaseOptions get currentPlatform {
     switch (defaultTargetPlatform) {
@@ -18,21 +14,22 @@ class DefaultFirebaseOptions {
     }
   }
 
-  // TODO: Replace with actual Firebase project values
   static const FirebaseOptions android = FirebaseOptions(
-    apiKey: 'YOUR-API-KEY',
-    appId: 'YOUR-APP-ID',
-    messagingSenderId: 'YOUR-SENDER-ID',
-    projectId: 'YOUR-PROJECT-ID',
-    databaseURL: 'https://YOUR-PROJECT-ID-default-rtdb.firebaseio.com',
+    apiKey: 'AIzaSyB1Wvmmnlt24HDhVbwWaML3aAZOvyiuh2g',
+    appId: '1:122711594378:android:433d03517718e3beeb6473',
+    messagingSenderId: '122711594378',
+    projectId: 'thunne-game',
+    storageBucket: 'thunne-game.firebasestorage.app',
+    databaseURL: 'https://thunne-game-default-rtdb.europe-west1.firebasedatabase.app',
   );
 
   static const FirebaseOptions ios = FirebaseOptions(
-    apiKey: 'YOUR-API-KEY',
-    appId: 'YOUR-APP-ID',
-    messagingSenderId: 'YOUR-SENDER-ID',
-    projectId: 'YOUR-PROJECT-ID',
-    databaseURL: 'https://YOUR-PROJECT-ID-default-rtdb.firebaseio.com',
-    iosBundleId: 'com.example.thuneeGame',
+    apiKey: 'AIzaSyB6nGe5X8g6lbiFzggPGB3FfIeh7uKfFeM',
+    appId: '1:122711594378:ios:3f546cce672b9d87eb6473',
+    messagingSenderId: '122711594378',
+    projectId: 'thunne-game',
+    storageBucket: 'thunne-game.firebasestorage.app',
+    databaseURL: 'https://thunne-game-default-rtdb.europe-west1.firebasedatabase.app',
+    iosBundleId: 'com.justabard.thunee',
   );
 }

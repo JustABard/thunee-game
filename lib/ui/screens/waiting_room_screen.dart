@@ -213,21 +213,27 @@ class _WaitingRoomScreenState extends ConsumerState<WaitingRoomScreen> {
       }
     }
 
-    // Start game via notifier
-    ref.read(matchStateProvider.notifier).startNewMatch(players);
+    // Start game via multiplayer notifier (host-authoritative)
+    ref.read(multiplayerMatchStateProvider.notifier).startMatch(players);
 
-    // Mark lobby as in-progress
+    // Mark lobby as in-progress (triggers all clients to navigate)
     await service.startGame(lobby.code);
   }
 
   void _navigateToGame(Lobby lobby) {
-    // Set local seat for non-host players
+    // Set local seat
     final playerId = ref.read(localPlayerIdProvider);
     for (final entry in lobby.seats.entries) {
       if (entry.value?.id == playerId) {
         ref.read(localSeatProvider.notifier).state = entry.key;
         break;
       }
+    }
+
+    // Non-host clients start watching Firebase for game state updates
+    final isHost = ref.read(isHostProvider);
+    if (!isHost) {
+      ref.read(multiplayerMatchStateProvider.notifier).startWatching();
     }
 
     Navigator.pushReplacement(

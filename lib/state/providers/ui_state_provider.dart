@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../domain/models/player.dart';
 import 'game_state_provider.dart';
+import 'lobby_provider.dart';
 import 'local_seat_provider.dart';
 
 /// Provider for handover mode state (2-player pass-and-play)
@@ -17,9 +18,14 @@ final handoverVisibleProvider = StateNotifierProvider<HandoverNotifier, bool>((r
 });
 
 /// Provider that determines if handover is needed
-/// Returns true if it's a human player's turn in 2-player mode and handover hasn't been dismissed
+/// Returns true only in 2-player pass-and-play mode when it's a human's turn
+/// and the handover screen hasn't been dismissed.
 final needsHandoverProvider = Provider<bool>((ref) {
-  final matchState = ref.watch(matchStateProvider);
+  final mode = ref.watch(gameModeProvider);
+  // Online mode never needs handover — each device shows its own player
+  if (mode == GameMode.online) return false;
+
+  final matchState = ref.watch(activeMatchStateProvider);
   final roundState = ref.watch(roundStateProvider);
 
   if (matchState == null || roundState == null) return false;
@@ -48,10 +54,20 @@ final nextPlayerNameProvider = Provider<String?>((ref) {
   return roundState.currentPlayer.name;
 });
 
-/// Provider to check if a specific seat should show its cards
-/// In 2-player mode, only show cards for the current player after handover dismissed
+/// Provider to check if a specific seat should show its cards.
+/// Online: only the local seat's cards are shown.
+/// Solo (1 human): local seat only.
+/// 2-player pass-and-play: current human's cards after handover dismissed.
 final shouldShowCardsProvider = Provider.family<bool, Seat>((ref, seat) {
-  final matchState = ref.watch(matchStateProvider);
+  final mode = ref.watch(gameModeProvider);
+
+  // In online mode, each device only shows the local player's cards
+  if (mode == GameMode.online) {
+    final localSeat = ref.watch(localSeatProvider);
+    return seat == localSeat;
+  }
+
+  final matchState = ref.watch(activeMatchStateProvider);
   final roundState = ref.watch(roundStateProvider);
   final isHandoverVisible = ref.watch(handoverVisibleProvider);
 

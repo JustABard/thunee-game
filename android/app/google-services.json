@@ -1,0 +1,30 @@
+{
+  "project_info": {
+    "project_number": "122711594378",
+    "firebase_url": "https://thunne-game-default-rtdb.europe-west1.firebasedatabase.app",
+    "project_id": "thunne-game",
+    "storage_bucket": "thunne-game.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:122711594378:android:433d03517718e3beeb6473",
+        "android_client_info": {
+          "package_name": "com.justabard.thunee"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyB1Wvmmnlt24HDhVbwWaML3aAZOvyiuh2g"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

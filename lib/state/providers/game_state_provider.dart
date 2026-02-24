@@ -16,16 +16,25 @@ final gameEngineProvider = Provider<GameEngine>((ref) {
   return GameEngine(config: config);
 });
 
-/// Provider for match state
+/// Provider for match state (local / solo / pass-and-play)
 final matchStateProvider = StateNotifierProvider<GameStateNotifier, MatchState?>((ref) {
   final engine = ref.watch(gameEngineProvider);
   final localSeat = ref.watch(localSeatProvider);
   return GameStateNotifier(engine, localSeat: localSeat);
 });
 
+/// Active match state — switches between local and multiplayer based on GameMode.
+final activeMatchStateProvider = Provider<MatchState?>((ref) {
+  final mode = ref.watch(gameModeProvider);
+  if (mode == GameMode.online) {
+    return ref.watch(multiplayerMatchStateProvider);
+  }
+  return ref.watch(matchStateProvider);
+});
+
 /// Provider for current round state
 final roundStateProvider = Provider<RoundState?>((ref) {
-  final matchState = ref.watch(matchStateProvider);
+  final matchState = ref.watch(activeMatchStateProvider);
   return matchState?.currentRound;
 });
 
@@ -99,6 +108,12 @@ final canCallThuneeProvider = Provider<bool>((ref) {
 
 /// True when the Jodi call window is open (notifier controls this flag)
 final jodiWindowOpenProvider = Provider<bool>((ref) {
+  final mode = ref.watch(gameModeProvider);
+  if (mode == GameMode.online) {
+    final notifier = ref.watch(multiplayerMatchStateProvider.notifier);
+    ref.watch(multiplayerMatchStateProvider);
+    return notifier.jodiWindowOpen;
+  }
   final notifier = ref.watch(matchStateProvider.notifier);
   ref.watch(matchStateProvider);
   return notifier.jodiWindowOpen;
@@ -106,6 +121,12 @@ final jodiWindowOpenProvider = Provider<bool>((ref) {
 
 /// The round result description (null = no overlay showing)
 final roundResultProvider = Provider<String?>((ref) {
+  final mode = ref.watch(gameModeProvider);
+  if (mode == GameMode.online) {
+    final notifier = ref.watch(multiplayerMatchStateProvider.notifier);
+    ref.watch(multiplayerMatchStateProvider);
+    return notifier.lastRoundResult;
+  }
   final notifier = ref.watch(matchStateProvider.notifier);
   ref.watch(matchStateProvider);
   return notifier.lastRoundResult;
@@ -143,4 +164,74 @@ final multiplayerMatchStateProvider =
     localSeat: localSeat,
     isHost: isHost,
   );
+});
+
+/// Unified dispatcher for all game actions.
+/// Routes calls to the correct notifier based on current GameMode.
+class GameActionsDispatcher {
+  final GameStateNotifier _local;
+  final MultiplayerGameNotifier _multiplayer;
+  final bool _isOnline;
+
+  GameActionsDispatcher({
+    required GameStateNotifier local,
+    required MultiplayerGameNotifier multiplayer,
+    required bool isOnline,
+  })  : _local = local,
+        _multiplayer = multiplayer,
+        _isOnline = isOnline;
+
+  void makeBid(int amount) =>
+      _isOnline ? _multiplayer.makeBid(amount) : _local.makeBid(amount);
+
+  void passBid() =>
+      _isOnline ? _multiplayer.passBid() : _local.passBid();
+
+  void selectTrump(Card card) =>
+      _isOnline ? _multiplayer.selectTrump(card) : _local.selectTrump(card);
+
+  void playCard(Card card) =>
+      _isOnline ? _multiplayer.playCard(card) : _local.playCard(card);
+
+  void callThunee() =>
+      _isOnline ? _multiplayer.callThunee() : _local.callThunee();
+
+  void callRoyals() =>
+      _isOnline ? _multiplayer.callRoyals() : _local.callRoyals();
+
+  void callJodi(List<Card> cards) =>
+      _isOnline ? _multiplayer.callJodi(cards) : _local.callJodi(cards);
+
+  void dismissCallWindow() =>
+      _isOnline ? _multiplayer.dismissCallWindow() : _local.dismissCallWindow();
+
+  void dismissJodiWindow() =>
+      _isOnline ? _multiplayer.dismissJodiWindow() : _local.dismissJodiWindow();
+
+  void dismissRoundResult() =>
+      _isOnline ? _multiplayer.dismissRoundResult() : _local.dismissRoundResult();
+}
+
+/// Provider for the unified game action dispatcher.
+final gameActionsProvider = Provider<GameActionsDispatcher>((ref) {
+  final mode = ref.watch(gameModeProvider);
+  return GameActionsDispatcher(
+    local: ref.read(matchStateProvider.notifier),
+    multiplayer: ref.read(multiplayerMatchStateProvider.notifier),
+    isOnline: mode == GameMode.online,
+  );
+});
+
+/// Stream of error messages from the multiplayer notifier.
+final multiplayerErrorStreamProvider = StreamProvider<String>((ref) {
+  final mode = ref.watch(gameModeProvider);
+  if (mode != GameMode.online) return const Stream.empty();
+  return ref.watch(multiplayerMatchStateProvider.notifier).errors;
+});
+
+/// Stream of player disconnect messages from the multiplayer notifier.
+final multiplayerDisconnectStreamProvider = StreamProvider<String>((ref) {
+  final mode = ref.watch(gameModeProvider);
+  if (mode != GameMode.online) return const Stream.empty();
+  return ref.watch(multiplayerMatchStateProvider.notifier).disconnections;
 });
