@@ -216,10 +216,89 @@ class _PerspectiveTablePainter extends CustomPainter {
     final w = size.width;
     final h = size.height;
 
-    // Dark room background
+    // ── Bar-room background ───────────────────────────────────────────────
+    // 1. Base: deep warm-brown gradient (like dark wood-panelled bar walls)
     canvas.drawRect(
       Rect.fromLTWH(0, 0, w, h),
-      Paint()..color = const Color(0xFF0A0A0E),
+      Paint()
+        ..shader = LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: const [
+            Color(0xFF221308), // warm dark brown up top
+            Color(0xFF160D05), // mid
+            Color(0xFF0C0803), // near-black at floor
+          ],
+          stops: const [0.0, 0.45, 1.0],
+        ).createShader(Rect.fromLTWH(0, 0, w, h)),
+    );
+
+    // 2. Main overhead pendant-lamp bloom (warm amber, centred above table)
+    canvas.drawRect(
+      Rect.fromLTWH(0, 0, w, h),
+      Paint()
+        ..shader = RadialGradient(
+          center: const Alignment(0, -0.72),
+          radius: 1.35,
+          colors: const [
+            Color(0x58D48520), // warm amber core
+            Color(0x1EB86810), // soft mid halo
+            Color(0x00B86810), // fade out
+          ],
+          stops: const [0.0, 0.5, 1.0],
+        ).createShader(Rect.fromLTWH(0, 0, w, h)),
+    );
+
+    // 3. Secondary lamp (right side — two-bulb bar fitting feel)
+    canvas.drawRect(
+      Rect.fromLTWH(0, 0, w, h),
+      Paint()
+        ..shader = RadialGradient(
+          center: const Alignment(0.65, -0.9),
+          radius: 0.75,
+          colors: const [
+            Color(0x22C07828),
+            Color(0x00C07828),
+          ],
+        ).createShader(Rect.fromLTWH(0, 0, w, h)),
+    );
+
+    // 4. Vertical wood panelling lines
+    const panelPositions = [
+      0.09, 0.18, 0.27, 0.36, 0.45, 0.55, 0.64, 0.73, 0.82, 0.91
+    ];
+    for (final pos in panelPositions) {
+      final x = w * pos;
+      // faint bright edge (left of groove)
+      canvas.drawLine(
+        Offset(x, 0), Offset(x, h),
+        Paint()
+          ..color = const Color(0x10FFFFFF)
+          ..strokeWidth = 0.8,
+      );
+      // faint shadow edge (right of groove)
+      canvas.drawLine(
+        Offset(x + 1.5, 0), Offset(x + 1.5, h),
+        Paint()
+          ..color = const Color(0x08000000)
+          ..strokeWidth = 0.8,
+      );
+    }
+
+    // 5. Corner / edge vignette — atmospheric darkness at the periphery
+    canvas.drawRect(
+      Rect.fromLTWH(0, 0, w, h),
+      Paint()
+        ..shader = RadialGradient(
+          center: Alignment.center,
+          radius: 1.15,
+          colors: const [
+            Color(0x00000000),
+            Color(0x00000000),
+            Color(0x70000000),
+          ],
+          stops: const [0.0, 0.45, 1.0],
+        ).createShader(Rect.fromLTWH(0, 0, w, h)),
     );
 
     // Outer wood rim — trapezoid (wider at bottom, narrower at top)
