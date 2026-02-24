@@ -1,4 +1,4 @@
-package com.example.thunee_game
+package com.justabard.thunee
 
 import io.flutter.embedding.android.FlutterActivity
 

@@ -67,6 +67,15 @@ class GameTableScreen extends ConsumerWidget {
       }
     });
 
+    // Cleans up online game state and navigates home.
+    void quitGame() {
+      if (gameMode == GameMode.online) {
+        ref.read(gameModeProvider.notifier).state = GameMode.solo;
+        ref.read(lobbyCodeProvider.notifier).state = null;
+      }
+      Navigator.of(context).popUntil((route) => route.isFirst);
+    }
+
     // Show handover when human player's turn starts in 2-player pass-and-play mode
     if (gameMode != GameMode.online && matchState != null && roundState != null) {
       final humanPlayers = matchState.players.where((p) => !p.isBot).toList();
@@ -109,7 +118,7 @@ class GameTableScreen extends ConsumerWidget {
           ),
         );
         if ((shouldQuit ?? false) && context.mounted) {
-          Navigator.of(context).pop();
+          quitGame();
         }
       },
       child: Scaffold(
@@ -192,7 +201,7 @@ class GameTableScreen extends ConsumerWidget {
                             ),
                           );
                           if ((shouldQuit ?? false) && context.mounted) {
-                            Navigator.of(context).pop();
+                            quitGame();
                           }
                         },
                       ),
@@ -207,8 +216,7 @@ class GameTableScreen extends ConsumerWidget {
                       onDismiss: () {
                         ref.read(gameActionsProvider).dismissRoundResult();
                         if (matchState.isComplete) {
-                          // Match is over — go back to home
-                          Navigator.of(context).popUntil((route) => route.isFirst);
+                          quitGame();
                         }
                       },
                     ),
